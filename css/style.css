@@ -1,0 +1,177 @@
+body {
+	padding: 0px;
+	margin: 0px;
+	font-family: Calibri, Verdana, Geneva, sans-serif;
+	color: #868786;
+	position: relative;
+	width: 100%;
+	min-height: 100%;
+}
+
+input[type=text] {
+	padding: 1px 5px 1px 5px;
+	background-color: white;
+	border: solid 1px #868786;
+	border-radius: 5px;
+	color: #181716;
+}
+
+input:focus {
+	-webkit-box-shadow: 0px 0px 2px 0px rgba(48,69,158,0.75);
+	-moz-box-shadow: 0px 0px 2px 0px rgba(48,69,158,0.75);
+	box-shadow: 0px 0px 2px 0px rgba(48,69,158,0.75);
+} 
+.main-area{
+	background-color: white;
+	color: #181716;
+	-webkit-box-shadow: 0px 0px 2px 0px rgba(0,0,0,0.75);
+	-moz-box-shadow: 0px 0px 2px 0px rgba(0,0,0,0.75);
+	box-shadow: 0px 0px 2px 0px rgba(0,0,0,0.75);
+}
+.header-area{
+	color: #181716;
+	-webkit-box-shadow: 0px 0px 2px 0px rgba(0,0,0,0.75);
+	-moz-box-shadow: 0px 0px 2px 0px rgba(0,0,0,0.75);
+	box-shadow: 0px 0px 2px 0px rgba(0,0,0,0.75);
+}
+.image{
+
+}
+
+.imageDisp {
+    max-width: 100%;
+	max-height: 100%;
+}
+
+.area {
+	padding: 0px;
+	margin: 0px;
+}
+
+.placement {
+	position: absolute;
+	vertical-align: top;
+}
+
+.block {
+	padding: 0px;
+	margin: 5px;
+	border: 0px;
+}
+
+.widget {
+	vertical-align: top;
+	position: relative;
+	display: inline-block;
+	margin: 1px;
+	padding: 1px;
+}
+
+.container {
+	display: inline-block;
+    white-space: nowrap;
+	position: relative;
+	margin: 1px;
+	border: 0px;
+}
+
+.verScrolling {
+	width: 100%;
+	height: 100%;
+	overflow-x: hidden;
+	overflow-y: scroll;
+}
+
+.horScrolling {
+	overflow-x: scroll;
+	white-space: nowrap;
+}
+
+.statusIndicator {
+	cursor: help;
+	border-radius: 6px;
+}
+
+.indicator {
+
+}
+
+.label {
+	vertical-align: middle;
+}
+
+.button {
+}
+
+.nav-button {
+	cursor: pointer;
+	font-weight: bold;
+}
+
+.buttonImage {
+	height: 14px;
+}
+
+.progressbar-container{
+	-webkit-box-shadow: 0px 0px 2px 0px rgba(48,69,158,0.75);
+	-moz-box-shadow: 0px 0px 2px 0px rgba(48,69,158,0.75);
+	box-shadow: 0px 0px 2px 0px rgba(48,69,158,0.75);
+}
+
+.progressbar-progress{
+	background-color: #004B99;
+	height: 10px;
+}
+
+.overlay-background{
+	background-image: url("../im/overlay-bg2.png");
+	background-repeat: repeat;
+	position:fixed;
+    width:100%;
+    height:100%;
+    top:0px;
+    left:0px;
+    z-index:1000;
+	cursor: wait;
+}
+
+.overlay-display{	
+	color: #868786;
+	background-color: white;
+	position: fixed;
+	top: 10px;
+	left: 10px;
+	border-radius: 5px;
+}
+
+table {
+	border-collapse: collapse;
+	table-layout:fixed;
+	overflow:hidden; 
+	white-space: nowrap; 
+}
+td {
+	table-layout:fixed;
+	overflow:hidden; 
+	white-space: nowrap; 
+}
+
+.table-row{
+	border-bottom:1px solid #004B99;
+}
+
+.main-footer{
+	padding: 0px;
+	margin: -6px 0px -8px 0px;    
+	text-align: right;
+	color: grey;
+	font-size: small;
+}
+
+.dectris{
+	color: #004B99;
+}
+
+.dectris-background{
+	background-color: #004B99;
+}
