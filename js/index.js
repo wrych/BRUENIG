@@ -1,4 +1,4 @@
-var clientVersion = '1.3.0T1';
+var clientVersion = '1.3.0T2';
 var uniId = 0;
 
 $( document ).ready(function() {
@@ -128,12 +128,12 @@ $( document ).ready(function() {
 	var nv01 = new BlockArea(navigationArea, 1, 'xx', 'xx');
 	
 	// Adding pages to main
-	var pa01 = ui.addView(BlockArea, 'Settings', 'Detector Settings');
-	var pa02 = ui.addView(BlockArea, 'Acquire', 'Aquisition Settings');
-	var pa03 = ui.addView(BlockArea, 'Exposure', 'Exposure Information');
-	var pa04 = ui.addView(BlockArea, 'Data', 'Data Information');
-	var pa05 = ui.addView(BlockArea, 'Log', 'Logs and Information');
-	var pa06 = ui.addView(BlockArea, 'Help & Support', 'Information about DECTRIS Ltd. support and help.');
+	var pa01 = ui.addView(ViewArea, 'Settings', 'Detector Settings');
+	var pa02 = ui.addView(ViewArea, 'Acquire', 'Aquisition Settings');
+	var pa03 = ui.addView(ViewArea, 'Exposure', 'Exposure Information');
+	var pa04 = ui.addView(ViewArea, 'Data', 'Data Information');
+	var pa05 = ui.addView(ViewArea, 'Log', 'Logs and Information');
+	var pa06 = ui.addView(ViewArea, 'Help & Support', 'Information about DECTRIS Ltd. support and help.');
 	
 	// Adding buttons for pages (navigation)
 	var nv01_btn01 = ui.addNavButton(pa01, nv01);
@@ -145,11 +145,19 @@ $( document ).ready(function() {
 	
 	// page1, connection settings
 	var p01_con01 = pa01.addWidget(EIGERConSet,[ui, eUi]);
-	var p02_acq01 = pa02.addWidget(EIGERAcqSet,[ui, eUi]);
-	var p03_log01 = pa03.addWidget(EIGERAcq, [ui, eUi]);
-	var p04_log01 = pa04.addWidget(EIGERData, [ui, eUi]);
+	var p02_set01 = pa02.addWidget(EIGERAcqSet,[ui, eUi]);
+	var p03_acq01 = pa03.addWidget(EIGERAcq, [ui, eUi]);
+	var p04_dat01 = pa04.addWidget(EIGERData, [ui, eUi]);
 	var p05_log01 = pa05.addWidget(EIGERLog, [ui, eUi]);
-	var p06_log01 = pa06.addWidget(EIGERHelp, [ui, eUi]);
+	var p06_hlp01 = pa06.addWidget(EIGERHelp, [ui, eUi]);
+    
+    //
+    pa05.activate = function () {
+        p05_log01.activateLog();
+    }
+    pa05.leave = function () {
+        p05_log01.disableLog();
+    }
 
 	// Main Area Footer
 	

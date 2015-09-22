@@ -375,7 +375,22 @@ function EIGERLog(parent, id, name, description, ui, eUi) {
 	this.ttl01 = this.addWidget(Title,[]);
 	this.ttl01.setLvl('h2');
 	this.ttl01.setText('EIGER Logs and Command Overview');
-	
+	    
+    this.addNewLine();
+        
+    this.chk01 = this.addWidget(CheckBox,[]);
+    this.chk01.setTitle('Enable Command Log');
+    this.chk01.jInput.change(function (event) {
+        if (callee.chk01.getValue()) {
+            callee.activateLog.apply(callee,[]);
+        } else {
+            callee.disableLog.apply(callee,[]);   
+        }
+    });
+    
+    this.lbl01 = this.addWidget(Label, []);
+    
+    
 	this.addNewLine();
 	
 	this.ttl02 = this.addWidget(Title,[]);
@@ -390,7 +405,7 @@ function EIGERLog(parent, id, name, description, ui, eUi) {
 	this.ttl02.lbl02 = this.addWidget(Label,[]);
 	this.ttl02.lbl02.setText('n/a');
 	this.ttl02.lbl02.setWidth('50px');
-	ui.uiConnect(this.ttl02.lbl02, function() { return Object.keys(callee.eUi.eHandler.activeQueries).length; }, 50);
+	this.uic01 = ui.uiConnect(this.ttl02.lbl02, function() { return Object.keys(callee.eUi.eHandler.activeQueries).length; }, 500);
 	
 	this.ttl02.lbl03 = this.addWidget(Label,[]);
 	this.ttl02.lbl03.setText('History:');
@@ -398,19 +413,43 @@ function EIGERLog(parent, id, name, description, ui, eUi) {
 	this.ttl02.lbl04 = this.addWidget(Label,[]);
 	this.ttl02.lbl04.setText('n/a');
 	this.ttl02.lbl04.setWidth('50px');
-	ui.uiConnect(this.ttl02.lbl04, function () { return callee.eUi.eHandler.history }, 50);
-	
-	this.addNewLine();
-	
-	this.ttl03 = this.addWidget(Title,[]);
+	this.uic02 = ui.uiConnect(this.ttl02.lbl04, function () { return callee.eUi.eHandler.history }, 500);
+    
+    this.addNewLine();
+    
+    this.ttl03 = this.addWidget(Title,[]);
 	this.ttl03.setLvl('h4');
 	this.ttl03.setText('Active Commands');
+    
+	this.addNewLine();
 	
 	this.lgh01 = this.addWidget(EIGERCmdLogger, [this.eUi]);
 }
 
 EIGERLog.prototype = {
-    
+    activateLog : function () {
+        this.chk01.setValue(true);
+        this.uic01.setInterval();
+        this.uic02.setInterval();
+        this.lgh01.activate();
+        
+        var callee = this;
+        this.iInst = window.setTimeout( function() {
+            callee.disableLog.apply(callee,[]);
+        }, 60000);
+        this.lbl01.getJElement().html('Please be aware that logging will automatically be disabled<br> after 60 seconds for performance consideratons.');
+    },
+    disableLog : function () {
+        this.chk01.setValue(false);
+        this.uic01.clearInterval();
+        this.ttl02.lbl02.setText('n/a');
+        this.uic02.clearInterval();
+        this.ttl02.lbl04.setText('n/a');
+        this.lgh01.disable();
+        
+        window.clearTimeout(this.iInst);
+        this.lbl01.getJElement().html('');
+    }
 };
 
 function EIGERHelp(parent, id, name, description, ui, eUi) {
@@ -420,51 +459,74 @@ function EIGERHelp(parent, id, name, description, ui, eUi) {
 	this.type = 'AcquireSettings';
 	
 	this.ttl01 = this.addWidget(Title,[]);
-	this.ttl01.setLvl('h4');
+	this.ttl01.setLvl('h2');
 	this.ttl01.setText('Support');
+    
+    this.addNewLine();
 	
-	this.getJElement().append($ ('<p>We want to be your partner and find solutions for your needs. <br> \
+    this.ext01 = this.addWidget(Extendable,[]);
+    this.ext01.setTitle('Support');
+    
+    this.ext01.toggle();
+    
+	this.ext01.containerArea.getJElement().append($ ('<p>We want to be your partner and find solutions for your needs. <br> \
 								We can support you with our broad technical expertise and application know-how.<br><br> \
 								Questions and inquiries - please contact us:<br><br> \
 								E-mail<br> \
 								<a href="mailto:support@dectris.com">support@dectris.com</a><br><br> \
+								Homepage<br> \
+								<a href="http://www.dectris.com" target="_blank">www.dectris.com</a><br><br> \
 								Telephone<br> \
 								+41 56 500 21 02</p> ') );
 	
 	this.addNewLine();
 	
-	this.ttl01 = this.addWidget(Title,[]);
-	this.ttl01.setLvl('h4');
-	this.ttl01.setText('Help');
+	this.ttl02 = this.addWidget(Title,[]);
+	this.ttl02.setLvl('h2');
+	this.ttl02.setText('Help');
 	
 	this.addNewLine();
+    
+    this.ext02 = this.addWidget(Extendable,[]);
+    this.ext02.setTitle('Connect');
 	
-	this.img01 = this.addWidget(Image,[]);
-	this.img01.setSrc('im/help/Connect.jpeg');
-	this.img01.setWidth('600px');	
+	this.ext02.img01 = this.ext02.addContent(Image,[]);
+	this.ext02.img01.setSrc('im/help/Connect.jpeg');
+	this.ext02.img01.setWidth('600px');	
 	
-	this.getJElement().append($ ('<p>1. Please enter the detectors address (name or IP).<br>The port is configured to be 80 when the input is left empty <br> \
+	this.ext02.containerArea.getJElement().append($ ('<p>1. Please enter the detectors address (name or IP).<br>The port is configured to be 80 when the input is left empty <br> \
 							2. Click on the connect button to set up the client.</p> ') );
-							
-	this.img01 = this.addWidget(Image,[]);
-	this.img01.setSrc('im/help/Settings.jpeg');
-	this.img01.setWidth('600px');	
 	
-	this.getJElement().append($ ('<p>1. Please adapt the settings to your needs. <br> \
+    this.addNewLine();
+    
+    this.ext03 = this.addWidget(Extendable,[]);
+    this.ext03.setTitle('Settings');
+    
+	this.ext03.img01 = this.ext03.addContent(Image,[]);
+	this.ext03.img01.setSrc('im/help/Settings.jpeg');
+	this.ext03.img01.setWidth('600px');	
+	
+	this.ext03.containerArea.getJElement().append($ ('<p>1. Please adapt the settings to your needs. <br> \
 							2. Click on the acquire button to record a (series) of image(s).</p> ') );
-							
-	this.img01 = this.addWidget(Image,[]);
-	this.img01.setSrc('im/help/Download.jpeg');
-	this.img01.setWidth('600px');	
+    
+	this.ext03.img01 = this.ext03.addContent(Image,[]);
+	this.ext03.img01.setSrc('im/help/ExpertMode.jpeg');
+	this.ext03.img01.setWidth('600px');	
 	
-	this.getJElement().append($ ('<p>1. By clicking the download button you will start downloading a file. <br>Always make sure to download the master and the data file.<br> \
+	this.ext03.containerArea.getJElement().append($ ('<p>Advanced users might chose to use the advanced mode. Please only use this mode if you are an expert.</p> ') );	
+	
+    this.addNewLine();
+    
+    this.ext04 = this.addWidget(Extendable,[]);
+    this.ext04.setTitle('Data Downloader');
+                            
+	this.ext04.img01 = this.ext04.addContent(Image,[]);
+	this.ext04.img01.setSrc('im/help/Download.jpeg');
+	this.ext04.img01.setWidth('600px');	
+	
+	this.ext04.containerArea.getJElement().append($ ('<p>1. By clicking the download button you will start downloading a file. <br>Always make sure to download the master and the data file.<br> \
 							2. Clicking the "x" button will delete the resource on the DCU. You will be asked to confirm.</p> ') );	
-							
-	this.img01 = this.addWidget(Image,[]);
-	this.img01.setSrc('im/help/ExpertMode.jpeg');
-	this.img01.setWidth('600px');	
-	
-	this.getJElement().append($ ('<p>Advanced users might chose to use the advanced mode. Please only use this mode if you are an expert.</p> ') );	
+    
 }
 
 EIGERHelp.prototype = {
@@ -609,15 +671,24 @@ function EIGERCmdLogger(parent, id, name, description, eUi) {
 	this.jElement.css('overflow-x','hidden');
 	
 	this.rows = {};
-	
-	for (var el in this.eUi.eHandler.activeQueries) {
-		this.newQItem(this.eUi.eHandler.activeQueries[el]);
-	}
-	
-	this.eUi.addQueryStatusListener(this.updateQItem, this.newQItem, this);
 }
 
 EIGERCmdLogger.prototype = {
+    activate : function () {
+        this.eUi.addQueryStatusListener(this.updateQItem, this.newQItem, this);
+        for (var el in this.eUi.eHandler.activeQueries) {
+            this.newQItem(this.eUi.eHandler.activeQueries[el]);
+        }
+    },
+    disable : function () {
+        this.eUi.removeQueryStatusListener(this);
+        for (var index in this.rows) {
+        	this.rows[index].getJElement().remove();
+            this.rows[index] = undefined;
+            delete this.rows[index];
+        }
+        this.rows = [];
+    },
 	updateQItem : function (qInstance) {
 		var id = qInstance.getId();
 		var callee = this;
@@ -1587,7 +1658,7 @@ EIGERUiHandler.prototype = {
 	},
 	_checkConSuccess : function (data, address, port, init) {
 		var qTime = data.listOfQueues[1]['qObject'].endTime - data.listOfQueues[0]['qObject'].startTime;
-		this.refInterval = (qTime+1000)*3;
+		this.refInterval = (qTime+1000)*5;
 		console.log(sprintf('Requests took %s ms to complete. Using %s ms as reference interval setting.', qTime, this.refInterval));
 		this.cmd01 = '';
 		this.e.unbind();
@@ -1681,6 +1752,7 @@ EIGERUiHandler.prototype = {
 		var id = this.uiInstInt++;
 		var tmp = new EIGERUiConnector(this, id, widget, eigerValue, interval, form);
 		this.uiConnections[id] = tmp;
+        return tmp;
 	},
 	updateUiConnections : function() {
 		for ( var index in this.uiConnections ) {

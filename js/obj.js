@@ -20,7 +20,7 @@ function toLocalISO(datetime) {
         + ':' + pad(datetime.getMinutes()) 
         + ':' + pad(datetime.getSeconds()) 
         + '.' + pad(datetime.getMilliseconds()) 
-        + dif + pad(tzo / 60) 
+        + dif + pad(tzo / 60);
         + ':' + pad(tzo % 60);
 }
 
@@ -223,6 +223,29 @@ BlockArea.prototype = {
 	}
 };
 
+function ViewArea(parent, id, name, description) {
+	BlockArea.call(this, parent, id, name, description);
+    this.active = true;
+}
+
+ViewArea.prototype = {
+    setVisibility : function (visibility) {
+		if (visibility) {
+			this.getJElement().show();
+            this.active = true;
+            this.activate();
+		} else {
+			this.getJElement().hide();
+            if (this.active) {
+                this.active = false;
+                this.leave();
+            }
+		}
+	},
+    activate : function () {},
+    leave : function () {}
+};
+
 function WidgetArea(parent, id, name, description) {
 	Area.call(this, parent, id, name, description);
 	this.jElement.addClass('widget');
@@ -290,14 +313,14 @@ Input.prototype = {
 	getTitle : function(args) {
 		this.label.getText.apply(this.label,arguments);
 	}
-}
+};
 
 function CheckBox(parent, id, name, description) {
 	ContainerArea.call(this, parent, id, name, description);
-	this.type = 'CheckBox'
-	this.label = new _Label(this, this.id, this.name, this.description)
-	$('<br>').appendTo(this.jElement)
-	this.jInput = $('<input type=\'checkbox\'>').appendTo(this.jElement)
+	this.type = 'CheckBox';
+	this.label = new _Label(this, this.id, this.name, this.description);
+	$('<br>').appendTo(this.jElement);
+	this.jInput = $('<input type=\'checkbox\'>').appendTo(this.jElement);
 }
 
 CheckBox.prototype = {
@@ -314,20 +337,20 @@ CheckBox.prototype = {
 		this.jInput.prop('disabled');
 	},
 	setTitle : function(args) {
-		this.label.setText.apply(this.label,arguments)
+		this.label.setText.apply(this.label,arguments);
 	},
 	getTitle : function(args) {
-		this.label.getText.apply(this.label,arguments)
+		this.label.getText.apply(this.label,arguments);
 	}
-}
+};
 
 function Select(parent, id, name, description) {
 	ContainerArea.call(this, parent, id, name, description);
-	this.type = 'Select'
-	this.length = 0
-	this.label = new _Label(this, this.id, this.name, this.description)
-	$('<br>').appendTo(this.jElement)
-	this.jInput = $('<select></select>').appendTo(this.jElement)
+	this.type = 'Select';
+	this.length = 0;
+	this.label = new _Label(this, this.id, this.name, this.description);
+	$('<br>').appendTo(this.jElement);
+	this.jInput = $('<select></select>').appendTo(this.jElement);
 }
 
 Select.prototype = {
@@ -362,11 +385,66 @@ Select.prototype = {
 	getTitle : function(args) {
 		this.label.getText.apply(this.label,arguments)
 	}
+};
+
+function Extendable(parent, id, name, description) {
+	ContainerArea.call(this, parent, id, name, description);
+    this.jElement.addClass('expandable');
+    
+    this.expanded = false;
+    this.clickListeners = [];
+    
+    this.tlt01 = this.addWidget(Title,[]);
+    this.tlt01.setLvl('h3');
+    this.tlt01.setWidth('800px');
+    
+    this._img01 = this.addWidget(Image,[]);
+	this._img01.setSrc('im/expand.png');
+	this._img01.setWidth('12px');
+    
+    this.addNewLine();
+    
+    this.containerArea = this.addWidget(ContainerArea,[]);
+    this.containerArea.setVisibility(false);
+    
+    this.addClickListener(this.tlt01.jElement, this.clicked);
+    this.addClickListener(this._img01.jElement, this.clicked);
+    this.click(this.toggle, this);
+    
 }
+
+Extendable.prototype = {
+    toggle : function() {
+        if (this.expanded = !this.expanded) {
+            this.containerArea.getJElement().slideDown(300);
+            this._img01.setSrc('im/collapse.png');
+        } else {
+            this.containerArea.getJElement().slideUp(300);
+            this._img01.setSrc('im/expand.png');
+        }
+        
+    },
+    addContent : function(args) {
+        return this.containerArea.addWidget.apply(this.containerArea, arguments);
+    },
+	click : function (action, thisArg) {
+		this.clickListeners.push([action, thisArg])
+	},
+	clicked: function(event){
+		if (!this.disabled) {
+			for (var i = 0 ; i < this.clickListeners.length ; i++) {
+				this.clickListeners[i][0].apply(this.clickListeners[i][1], [event]);
+			}
+		}
+	},
+    setTitle : function (args) {
+        this.tlt01.setText.apply(this.tlt01,arguments)
+    }
+};
 
 function _Label(parent, id, name, description) {
 	WidgetArea.call(this, parent, id, name, description);
-	this.type = '_Label'
+	this.type = '_Label';
 	this.jElement.addClass('label');
 	this.setWidth('200px');
 	this.setHeight('18px');
@@ -771,6 +849,7 @@ OverlayDisplay.prototype = {
 
 extend(Area, BodyArea);
 extend(Area, BlockArea);
+extend(BlockArea, ViewArea);
 extend(Area, WidgetArea);
 extend(Area, ContainerArea);
 extend(Area, PlacementArea);
@@ -786,6 +865,7 @@ extend(WidgetArea, _StatusIndicator);
 extend(ContainerArea, Form);
 extend(ContainerArea, Label);
 extend(ContainerArea, CheckBox);
+extend(ContainerArea, Extendable);
 extend(ContainerArea, Title);
 extend(ContainerArea, Image);
 extend(ContainerArea, Input);
@@ -979,6 +1059,7 @@ UiHandler.prototype = {
 		var id = this.uiInstInt++;
 		var tmp = new UiConnector(id, widget, fValue, interval, form);
 		this.uiConnections[id] = tmp;
+        return tmp;
 	},	
 	addView : function(args) {
 		// Class, name, description, *additional args
@@ -1020,7 +1101,7 @@ UiHandler.prototype = {
 	activateView : function(view) {
 		for ( var el in this.viewList ) {
 			if (this.viewList[el].id !== view.id) {
-				this.viewList[el].setVisibility(false)
+				this.viewList[el].setVisibility(false);
 			}
 			
 		}
@@ -1037,7 +1118,10 @@ function UiConnector(id, widget, fValue, interval, form) {
 	this.setUpWidgetListners(this);
 	this.fValue = fValue;
 	this.setDisabled(true)
-	this.setInterval(this);
+    
+    this.active = false;
+    
+	this.setInterval();
 };
 
 UiConnector.prototype = {
@@ -1059,13 +1143,15 @@ UiConnector.prototype = {
 		};
 	},	
 	iFunction : function() {
-		if (this.interval > 0) {
+		if (this.interval > 0 && !this.active) {
 			var callee = this;
+            this.active = true;
 			return window.setInterval( function() {
 				callee.sync.apply(callee,[])
 			}, this.interval );
 		} else {
 			this.sync();
+            return this.iInst;
 		}
 	},
 	setUpWidgetListners : function() {
@@ -1077,6 +1163,7 @@ UiConnector.prototype = {
 	},
 	clearInterval : function() {
 		window.clearInterval(this.iInst);
+        this.active = false;
 	},
 	setInterval : function() {
 		this.iInst = this.iFunction();
