@@ -191,7 +191,7 @@ EIGERAcqSet.prototype = {
 		this.cmd01 = new EIGERSubseqCmdPrompt( this.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.success, this, []],'error' : [function () {}, this, []]});
 		
 		this.cmd01.setTitle('Preparing standard user mode...');
-		this.cmd01.setHeight('140px');
+		this.cmd01.setCmdHeight('140px');
 		
 		this.cmd01.addQObj(this.eUi.e.detector.config.ntrigger.setValue(1));
 		this.cmd01.addQObj(this.eUi.e.detector.config.flatfield_correction_applied.setValue(true));
@@ -296,8 +296,7 @@ EIGERExp.prototype = {
 		this.ui.activateView(view);
 	},
 	success : function(data) {
-		this.cmd01.getJElement().remove();
-		this.cmd01.btn01.getJElement().remove();
+		this.cmd01.remove();
 		dView = this.getView(this.endView);
 		this.switchView(dView);
 	},
@@ -308,13 +307,12 @@ EIGERExp.prototype = {
 		this.switchView(this.getView('Acquire'));
 	},
 	error : function(data) {	
-		this.cmd01.getJElement().remove();
-		this.cmd01.btn01.getJElement().remove();
+		this.cmd01.remove();
 		
 		this.cmd01 = new EIGERSubseqCmdPrompt( this.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.abortSuccess, this, []],'error' : [function () {}, this, []]});
 		
 		this.cmd01.setTitle('Recovering detector state...');
-		this.cmd01.setHeight('35px');
+		this.cmd01.setCmdHeight('35px');
 		
 		this.cmd01.addCmd(this.eUi.e.detector.command.abort, ['PUT','']);
 	}
@@ -839,7 +837,7 @@ function EIGERCustomCmdPrompt(parent, id, name, description, eUi) {
 		EIGERSubseqCmdHandler, 
 		[this.eUi, {'success' : [this._done, this, []],'error' : [this._fail, this, []]}]
 		);
-    this.cmd01.setHeight('100px');
+    this.cmd01.setCmdHeight('100px');
     
     this.addNewLine();
     
@@ -991,8 +989,8 @@ EIGERCustomCmdPrompt.prototype = {
 	setTitle : function (args) {
 		this.tlt01.setText.apply(this.tlt01,arguments);
 	},
-	setHeight : function (args) {
-		this.cmd01.setHeight.apply(this.cmd01,arguments);
+	setCmdHeight : function (args) {
+		this.cmd01.setCmdHeight.apply(this.cmd01,arguments);
 	}
 };
 
@@ -1264,9 +1262,6 @@ EIGERCmdInformation.prototype = {
     },
 	setTitle : function (args) {
 		this.tlt01.setText.apply(this.tlt01,arguments);
-	},
-	setHeight : function (args) {
-		this.cmd01.setHeight.apply(this.cmd01,arguments);
 	}
 };
 
@@ -1313,8 +1308,8 @@ EIGERSubseqCmdPrompt.prototype = {
 	setTitle : function (args) {
 		this.tlt01.setText.apply(this.tlt01,arguments);
 	},
-	setHeight : function (args) {
-		this.cmd01.setHeight.apply(this.cmd01,arguments);
+	setCmdHeight : function (args) {
+		this.cmd01.setCmdHeight.apply(this.cmd01,arguments);
 	},
     _done : function (data) {
         this.callback['success'][0].apply(this.callback['success'][1],[data].concat(this.callback['success'][2]));
@@ -1342,16 +1337,19 @@ function EIGERSubseqCmdHandler (parent, id, name, description, eUi, callbackList
 	
 	this.status = 0;
 	this.statusText = '';
-	
-	this.table = this.addWidget(Table,[]);
+    
+    this.tblContainer = this.addWidget(BlockArea, parent, id, name, description)
+	this.tblContainer.jElement.css('overflow-y','scroll');
+	this.tblContainer.jElement.css('overflow-x','hidden');
+    
+    this.setHeight('400px');
+    
+    this.table = this.tblContainer.addWidget(Table,[]);
 	this.table.setWidth('865px');
 	
-	this.btn01 = this.parent.addWidget(Button,['Cancel'])
+	this.btn01 = this.addWidget(Button,['Cancel'])
 	this.btn01.click(this.cancel, this);
-	
-	this.setHeight('400px');
-	this.jElement.css('overflow-y','scroll');
-	this.jElement.css('overflow-x','hidden');
+
 	
 	this.rows = {};
 	
@@ -1427,6 +1425,7 @@ EIGERSubseqCmdHandler.prototype = {
 		};
 	},
 	end : function() {
+        this.btn01.setDisabled(true);
 		this.eUi.removeQueryStatusListener(this);
 		if ( this.status < 0 ) {
 			console.log('Aborting Queue due to previous error.');
@@ -1555,6 +1554,21 @@ EIGERSubseqCmdHandler.prototype = {
 			}
 		}
 		return false;
+	},
+    remove : function () {
+        this.getJElement().remove();
+    },
+    setCmdHeight : function (value) {
+		var valueLength = value.length-2;
+		var valueInt = value.substr(0,valueLength);
+		this.getJElement().height(sprintf('%spx',parseInt(valueInt)+30));
+		this.tblContainer.setHeight(value);
+	},
+    setHeight : function (value) {
+		this.getJElement().height(value);
+		var valueLength = value.length-2;
+		var valueInt = value.substr(0,valueLength);
+		this.tblContainer.setHeight(sprintf('%spx',parseInt(valueInt)-30));
 	}
 };
 
@@ -1647,7 +1661,7 @@ EIGERUiHandler.prototype = {
 		this.cmd01 = new EIGERSubseqCmdPrompt( this.ui.body, 0, 'EHC', 'EIGER Command Handler', this, callback);
 		
 		this.cmd01.setTitle(sprintf('Trying to connect to %s:%s', address, port));
-		this.cmd01.setHeight('180px');
+		this.cmd01.setCmdHeight('180px');
 		
 		this.cmd01.addCmd(this.e.detector.config.keys, ['GET','']);
 		this.cmd01.addCmd(this.e.detector.status.keys, ['GET','']);
@@ -1688,7 +1702,7 @@ EIGERUiHandler.prototype = {
 		this.cmd01 = new EIGERSubseqCmdPrompt( this.ui.body, 0, 'EHC', 'EIGER Command Handler', this, callback);
 		
 		this.cmd01.setTitle(titleStr);
-		this.cmd01.setHeight(cmdHeight);
+		this.cmd01.setCmdHeight(cmdHeight);
 		
 		if (init === true) {
 			this.cmd01.addCmd(this.e.detector.command.initialize, ['Put',  '', true]);
@@ -1907,7 +1921,7 @@ EIGERUiConnector.prototype = {
 			this.cmd01 = new EIGERSubseqCmdPrompt( this.eUi.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.putSuccess, this, [submit]],'error' : [this.putError, this, []]});
 			
 			this.cmd01.setTitle(sprintf('Updating value %s...', this.eigerValue.index));
-			this.cmd01.setHeight('35px');
+			this.cmd01.setCmdHeight('35px');
 			
 			this.cmd01.addQObj(this.eigerValue.setValue(this.widget.getValue()));
 		} else {
@@ -1937,7 +1951,7 @@ EIGERUiConnector.prototype = {
         this.cmd01 = new EIGERSubseqCmdPrompt( this.eUi.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.error, this, []],'error' : [this.error, this, []]});
 
         this.cmd01.setTitle(sprintf('Recovering value %s...', this.eigerValue.index));
-        this.cmd01.setHeight('35px');
+        this.cmd01.setCmdHeight('35px');
         
         this.cmd01.addCmd(data.listOfQueues[0]['qObject'].instance, ['GET', '']);
 	},
@@ -1959,7 +1973,7 @@ EIGERUiConnector.prototype = {
             this.cmd01.setTitle(sprintf('Refreshing dependent keys (%s)...', this.eigerValue.index));
 
             var cmdHeight = sprintf('%spx',30*changedKeys.length);
-            this.cmd01.setHeight(cmdHeight);
+            this.cmd01.setCmdHeight(cmdHeight);
 
             for (var i = 0 ; i < changedKeys.length ; i++) {
                 if ( !inExcludedKeys(changedKeys[i]) ) {

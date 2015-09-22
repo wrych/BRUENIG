@@ -468,7 +468,9 @@ function EIGERKey(superDet, domain, subdomain, index) {
 	this.children = {};
 	if ( this.subdomain.index === 'command' ) {
 		this.constructChild('access_mode', 'w');
-	} else {
+	} else if ( this.subdomain.index === 'status' ) { // Fix for an incompability with JAUN, seems like a bug to me
+		this.constructChild('access_mode', 'r');
+    } else {
 		this.constructChild('access_mode', '');
 	};
 };
