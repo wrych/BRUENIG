@@ -838,6 +838,7 @@ function EIGERCustomCmdPrompt(parent, id, name, description, eUi) {
 		[this.eUi, {'success' : [this._done, this, []],'error' : [this._fail, this, []]}]
 		);
     this.cmd01.setCmdHeight('100px');
+    this.cmd01.btn01.setDisabled(true);
     
     this.addNewLine();
     
@@ -956,6 +957,7 @@ EIGERCustomCmdPrompt.prototype = {
     startQ : function () {
         this.btn02.setVisibility(false);
         this.frm01.setVisibility(false);
+        this.cmd01.btn01.setDisabled(false);
         this.cmd01.exec();
     },
     submit : function (args) {
@@ -982,9 +984,6 @@ EIGERCustomCmdPrompt.prototype = {
 	},
 	addMCmd : function (args) {
 		this.cmd01.addMCmd.apply(this.cmd01, arguments);
-	},
-	exec : function (args) {
-		this.cmd01.exec.apply(this.cmd01, arguments);
 	},
 	setTitle : function (args) {
 		this.tlt01.setText.apply(this.tlt01,arguments);
