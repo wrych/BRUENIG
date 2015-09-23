@@ -257,9 +257,13 @@ function EIGERExp (ui, eUi, action) {
 			var nTriggers = this.eUi.e.detector.config.ntrigger.value.value;
 			console.log(sprintf('Starting %s series with %s triggers...', triggerMode, nTriggers));
 			this.cmd01.addCmd(this.eUi.e.detector.command.arm, ['Put', '', true]);
-			if ( String(triggerMode).startsWith('int') ) {
+			if ( triggerMode.toLowerCase() === 'ints' ) {
 				for (var i=0 ; i < nTriggers ; i++) {
 					this.cmd01.addCmd(this.eUi.e.detector.command.trigger, ['Put', '', true], this.cmd01.EXEC_CLICK);
+				}
+			} else if ( triggerMode.toLowerCase() === 'inte' ) {
+				for (var i=0 ; i < nTriggers ; i++) {
+					this.cmd01.addCmd(this.eUi.e.detector.command.trigger, ['Put', '', true], this.cmd01.EXEC_VCLICK);
 				}
 			}
 			this.cmd01.addCmd(this.eUi.e.detector.command.disarm, ['Put', '', true], this.cmd01.EXEC_ICLICK, this.cmd01.ENDING_COMMAND);
@@ -813,10 +817,8 @@ function EIGERCustomCmdPrompt(parent, id, name, description, eUi) {
     });
     this.sel04.setDisabled(true);
     
-    this.inp01 = this.frm01.addWidget(Input,[])
-    this.inp01.setTitle('Value');
-    this.inp01.setWidth('150px');
-    this.inp01.setDisabled(true);
+    this.vaa01 = this.frm01.addWidget(ContainerArea,[]);
+    this.vaa01.setWidth('150px');
     
     this.frm01.addNewLine();
     
@@ -872,7 +874,79 @@ EIGERCustomCmdPrompt.prototype = {
         widget.addOptions(argList);
         widget.setValue('');
     },
+    getDataType : function (key) {
+        try { 
+            var dataType = key.value_type.value;
+        } catch(err) {
+            if (key.subdomain.index === 'command') {
+                if (key.index === 'trigger') {
+                    var dataType = 'float';
+                } else {
+                    var dataType = 'command';
+                }
+            }
+        };
+        return dataType;
+    },
+    addValueField : function (key) {        
+        var dataType = this.getDataType(key);
+        try { var allowedValues = key.allowed_values.value; } catch(err) {};
+        
+        if (allowedValues !== undefined) {
+            this.val01 = this.vaa01.addWidget(Select,[]);
+            this.val01.setTitle('Value');
+            this.val01.addOptions(allowedValues);
+            this.val01.setValue(key.value.value);
+        } else {
+            switch (dataType) {
+                case 'bool':
+                    this.val01 = this.vaa01.addWidget(CheckBox,[]);
+                    this.val01.setTitle('Value');
+                    this.val01.setValue(key.value.value);
+                    break;
+                case 'uint':
+                case 'float':
+                case 'string':
+                    this.val01 = this.vaa01.addWidget(Input,[]);
+                    this.val01.setTitle('Value');
+                    this.val01.setValue(key.value.value);
+                    break;
+                default:
+                    break;
+            }
+        }
+    },
+    removeValueField : function () {
+        this.vaa01.getJElement().empty();
+    },
+    getValue : function (key) {
+        var dataType = this.getDataType(key);
+        switch (dataType) {
+            case 'command':
+                var value = undefined;
+                break;
+            case 'bool':
+                var value = this.val01.getValue();
+                break;
+            case 'uint':
+                var value = filterInt(this.val01.getValue());
+                if (isNaN(value)) {
+                    throw sprintf('Failed to cast \'%s\' to %s...', this.val01.getValue(), dataType);
+                }
+                break;
+            case 'float':
+                var value = parseFloat(this.val01.getValue());
+                if (isNaN(value)) {
+                    throw sprintf('Failed to cast \'%s\' to %s...', this.val01.getValue(), dataType);
+                }
+                break
+            default:
+                var value = this.val01.getValue();
+        }
+        return value;
+    },
     changeModule : function (event) {
+        this.removeValueField();
         this.enableAllModes();
         this.btn01.setDisabled(true);
         this.sel03.empty();
@@ -882,6 +956,7 @@ EIGERCustomCmdPrompt.prototype = {
         this.addOptions(this.sel03, this.eUi.e[this.sel02.getValue()].children);
     },
     changeTask : function (event) {
+        this.removeValueField();
         this.enableAllModes();
         this.btn01.setDisabled(true);
         this.sel04.setDisabled(true);
@@ -896,22 +971,26 @@ EIGERCustomCmdPrompt.prototype = {
         }
     },
     changeKey : function (event) {
-        this.enableMode(this.eUi.e[this.sel02.getValue()][this.sel03.getValue()][this.sel04.getValue()].access_mode.value);
-        if (this.sel01.getValue() === 'PUT') {
-            this.inp01.setDisabled(false);
+        this.removeValueField();
+        try {
+            var key = this.eUi.e[this.sel02.getValue()][this.sel03.getValue()][this.sel04.getValue()];
+            this.enableMode(key.access_mode.value);
+            switch(this.sel01.getValue()) {
+                case 'PUT':
+                    this.addValueField(key);
+                    break;
+                case 'GET':
+                default:
+                    this.removeValueField();
+                    break;
+            }
+            this.btn01.setDisabled(false);
+        } catch (err) {
+            console.log(err);
         }
-        this.btn01.setDisabled(false);
     },
     changeMethod : function (event) {
-        switch(this.sel01.getValue()) {
-            case 'PUT':
-                this.inp01.setDisabled(false);
-                break;
-            case 'GET':
-            default:
-                this.inp01.setDisabled(true);
-                break;
-        }
+        this.changeKey();
     },
     changeMode : function (event) {
         this.inp01.setDisabled(false);
@@ -949,7 +1028,7 @@ EIGERCustomCmdPrompt.prototype = {
                 var enOption = callee.sel01.jInput.find('option:enabled').first();
                 enOption.each( function () {
                     callee.sel01.setValue($(this).val());
-                    callee.changeMethod.apply(callee,[])
+                    callee.changeMethod.apply(callee,[]);
                 });
             }
         });
@@ -969,7 +1048,12 @@ EIGERCustomCmdPrompt.prototype = {
                 this.addQObj(key.updateKey(true), execStyle);
                 break;
             case 'PUT':
-                this.addQObj(key.setValue(this.inp01.getValue(),true), execStyle);
+                try { 
+                    var value = this.getValue(key);
+                    this.addQObj(key.setValue(value,true), execStyle);
+                } catch (err) {
+                    alert(sprintf('Error in parsing value.\n\n%s', err));
+                }
                 break;
             default:
                 break;    
@@ -1001,9 +1085,17 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     
     this.qInstance = undefined;
     
-    this.jElement.css('cursor','default');
+    this.reqPayload = false;
+    this.resPayload = false;
     
-    this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'top', ['mid',-200], 0);
+    var callee = this;
+    
+    this.jElement.css('cursor','default');
+    this.jElement.css('max-height','600px');
+    this.jElement.css('overflow-y','scroll');
+    this.jElement.css('overflow-x','hidden');
+    
+    this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'top', ['mid',-300], 0);
     this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'left', ['mid',-400], 0);
 	this.eUi.ui.resizer.trigger();
 	
@@ -1042,6 +1134,7 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.tbr01.tfd04.setWidth('230px');
     
     this.tbr02 = this.table.addWidget(TableRow,[]);
+    this.tbr02.setHeight('22px');
     
     this.tbr02.tfd01 = this.tbr02.addWidget(TableField);
     this.tbr02.tfd01.setText('Address');
@@ -1056,6 +1149,7 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.tbr02.tfd04.setText('RESPONSE_CODE');
     
     this.tbr03 = this.table.addWidget(TableRow,[]);
+    this.tbr03.setHeight('22px');
     
     this.tbr03.tfd01 = this.tbr03.addWidget(TableField);
     this.tbr03.tfd01.setText('Port');
@@ -1070,6 +1164,7 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.tbr03.tfd04.setText('RESPONSE_Status');
     
     this.tbr04 = this.table.addWidget(TableRow,[]);
+    this.tbr04.setHeight('22px');
     
     this.tbr04.tfd01 = this.tbr04.addWidget(TableField);
     this.tbr04.tfd01.setText('Module');
@@ -1078,6 +1173,7 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.tbr04.tfd02.setText('Module');
     
     this.tbr05 = this.table.addWidget(TableRow,[]);
+    this.tbr05.setHeight('22px');
     
     this.tbr05.tfd01 = this.tbr05.addWidget(TableField);
     this.tbr05.tfd01.setText('API Version');
@@ -1086,6 +1182,7 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.tbr05.tfd02.setText('DCU_APIVER');
     
     this.tbr06 = this.table.addWidget(TableRow,[]);
+    this.tbr06.setHeight('22px');
     
     this.tbr06.tfd01 = this.tbr06.addWidget(TableField);
     this.tbr06.tfd01.setText('Task');
@@ -1094,6 +1191,7 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.tbr06.tfd02.setText('Task');
     
     this.tbr07 = this.table.addWidget(TableRow,[]);
+    this.tbr07.setHeight('22px');
     
     this.tbr07.tfd01 = this.tbr07.addWidget(TableField);
     this.tbr07.tfd01.setText('Key');
@@ -1102,31 +1200,69 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.tbr07.tfd02.setText('Key');
     
     this.tbr08 = this.table.addWidget(TableRow,[]);
-    
     this.tbr08.tfd01 = this.tbr08.addWidget(TableField);
     this.tbr08.tfd01.setText('Payload');
     
     this.tbr08.tfd02 = this.tbr08.addWidget(TableField);
-    this.tbr08.tfd02.setText('REQ_Value');
+    this.tbr08.tfd02.lbl01 = this.tbr08.tfd02.addWidget(Label, []);
+    this.tbr08.tfd02.lbl01.setWidth('210px');
+    this.tbr08.tfd02.lbl01.getJElement().css('overflow-x','hidden');
+    this.tbr08.tfd02.lbl01.getJElement().css('overflow-y','hidden');
+    this.tbr08.tfd02.lbl01.getJElement().css('vertical-align','top');
+    this.tbr08.tfd02.lbl01.setText('RESPONSE_Payload');
+    this.tbr08.tfd02.img01 = this.tbr08.tfd02.addWidget(Image, []);
+    this.tbr08.tfd02.img01.getJElement().css('vertical-align','top');
+	this.tbr08.tfd02.img01.setSrc('im/expand.png');
+	this.tbr08.tfd02.img01.setWidth('12px');
+    this.tbr08.tfd02.click(function () {
+        callee.toggleReqPayload.apply(callee,[]);
+    });	
+    
     
     this.tbr08.tfd03 = this.tbr08.addWidget(TableField);
     this.tbr08.tfd03.setText('Payload');
     
     this.tbr08.tfd04 = this.tbr08.addWidget(TableField);
-    this.tbr08.tfd04.setText('RESPONSE_Payload');
+    this.tbr08.tfd04.lbl01 = this.tbr08.tfd04.addWidget(Label, []);
+    this.tbr08.tfd04.lbl01.setWidth('210px');
+    this.tbr08.tfd04.lbl01.getJElement().css('overflow-x','hidden');
+    this.tbr08.tfd04.lbl01.getJElement().css('overflow-y','hidden');
+    this.tbr08.tfd04.lbl01.getJElement().css('vertical-align','top');
+    this.tbr08.tfd04.lbl01.setText('RESPONSE_Payload');
+    this.tbr08.tfd04.img01 = this.tbr08.tfd04.addWidget(Image, []);
+    this.tbr08.tfd04.img01.getJElement().css('vertical-align','top');
+	this.tbr08.tfd04.img01.setSrc('im/expand.png');
+	this.tbr08.tfd04.img01.setWidth('12px');
+    this.tbr08.tfd04.click(function () {
+        callee.toggleResPayload.apply(callee,[]);
+    });
     
-    this.tbr09 = this.table.addWidget(TableRow,[]);
+    this.pre01 = this.addWidget(Pre,[]);
+    this.pre01.getJElement().css('overflow-y','scroll');
+    this.pre01.setWidth('700px');
+    this.pre01.getJElement().css('max-height','200px');
+    this.pre01.setVisibility(false);
+    this.pre01.addClickListener(this.pre01.getJElement(),function () {});
+    
+    this.tbl02 = this.addWidget(Table,[]);
+    this.tbl02.setWidth('700px');
+    
+    this.tbr09 = this.tbl02.addWidget(TableRow,[]);
     
     this.tbr09.tfd01 = this.tbr09.addWidget(TableField);
+    this.tbr09.tfd01.setWidth('120px');
     this.tbr09.tlt02 = this.tbr09.tfd01.addWidget(Title,[]);
 	this.tbr09.tlt02.setLvl('h3');
     this.tbr09.tlt02.setText('Meta');
     
     this.tbr09.tfd02 = this.tbr09.addWidget(TableField);
+    this.tbr09.tfd02.setWidth('230px');
     this.tbr09.tfd03 = this.tbr09.addWidget(TableField);
+    this.tbr09.tfd03.setWidth('120px');
     this.tbr09.tfd04 = this.tbr09.addWidget(TableField);
+    this.tbr09.tfd04.setWidth('230px');
     
-    this.tbr10 = this.table.addWidget(TableRow,[]);
+    this.tbr10 = this.tbl02.addWidget(TableRow,[]);
     
     this.tbr10.tfd01 = this.tbr10.addWidget(TableField);
     this.tbr10.tfd01.setText('Start Time');
@@ -1140,7 +1276,7 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.tbr10.tfd04 = this.tbr10.addWidget(TableField);
     this.tbr10.tfd04.setText('RESPONSE_Time');
     
-    this.tbr11 = this.table.addWidget(TableRow,[]);
+    this.tbr11 = this.tbl02.addWidget(TableRow,[]);
     
     this.tbr11.tfd01 = this.tbr11.addWidget(TableField);
     this.tbr11.tfd01.setText('Duration');
@@ -1151,10 +1287,10 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.addNewLine();
 
     this.btn01 = this.addWidget(Button, ['Update']);
-    this.btn01.click(this.update, this)
+    this.btn01.click(this.update, this);
     
     this.btn02 = this.addWidget(Button, ['Close']);
-    this.btn02.click(this.remove, this)
+    this.btn02.click(this.remove, this);
     
     this.setClickClose(true);
 }
@@ -1163,6 +1299,52 @@ EIGERCmdInformation.prototype = {
     close : function (event) {
         this.remove();
         //ToDo
+    },
+    toggleReqPayload : function () {
+        if (this.reqPayload) {
+            this.tbr08.tfd02.img01.setSrc('im/expand.png');
+            this.tbr08.tfd02.getJElement().css('border-bottom','0px');
+            this.pre01.getJElement().slideUp(300);
+        } else {
+            if (this.resPayload) {
+                this.tbr08.tfd04.img01.setSrc('im/expand.png');
+                this.tbr08.tfd04.getJElement().css('border-bottom','0px');
+                this.resPayload = !this.resPayload;
+            }
+            this.tbr08.tfd02.img01.setSrc('im/collapse.png');
+            this.tbr08.tfd02.getJElement().css('border-bottom','1px solid white');
+            var text = this.tbr08.tfd02.lbl01.getText();
+            if (text === '') {
+                this.pre01.html('not available');
+            } else {
+                this.pre01.html(prettyJSON(text));
+            }
+            this.pre01.getJElement().slideDown(300);
+        }
+        this.reqPayload = !this.reqPayload;
+    },
+    toggleResPayload : function () {
+        if (this.resPayload) {
+            this.tbr08.tfd04.img01.setSrc('im/expand.png');
+            this.tbr08.tfd04.getJElement().css('border-bottom','0px');
+            this.pre01.getJElement().slideUp(300);
+        } else {
+            if (this.reqPayload) {
+                this.tbr08.tfd02.img01.setSrc('im/expand.png');
+                this.tbr08.tfd02.getJElement().css('border-bottom','0px');
+                this.reqPayload = !this.reqPayload;
+            }
+            this.tbr08.tfd04.img01.setSrc('im/collapse.png');
+            this.tbr08.tfd04.getJElement().css('border-bottom','1px solid white');
+            var text = this.tbr08.tfd04.lbl01.getText();
+            if (text === '' || text === 'n/a') {
+                this.pre01.html('not available');
+            } else {
+                this.pre01.html(prettyJSON(text));
+            }
+            this.pre01.getJElement().slideDown(300);
+        }
+        this.resPayload = !this.resPayload;
     },
     setQ : function (qInstance) {
         this.qInstance = qInstance;
@@ -1196,7 +1378,7 @@ EIGERCmdInformation.prototype = {
         }
         this.tbr06.tfd02.setText(this.qInstance.instance.subdomain.index);
         this.tbr07.tfd02.setText(this.qInstance.instance.index);
-        this.tbr08.tfd02.setText(this.qInstance.data);
+        this.tbr08.tfd02.lbl01.setText(this.qInstance.data);
         this.tbr08.tfd02.setTitle(this.qInstance.data);
         
         
@@ -1204,7 +1386,7 @@ EIGERCmdInformation.prototype = {
             case 0:
                 this.tbr02.tfd04.setText('n/a');
                 this.tbr03.tfd04.setText('Queued');
-                this.tbr08.tfd04.setText('n/a');
+                this.tbr08.tfd04.lbl01.setText('n/a');
                 
                 this.tbr10.tfd02.setText('n/a');
                 this.tbr10.tfd04.setText('n/a');
@@ -1213,7 +1395,7 @@ EIGERCmdInformation.prototype = {
             case 1: 
                 this.tbr02.tfd04.setText('n/a');
                 this.tbr03.tfd04.setText('Sent');
-                this.tbr08.tfd04.setText('n/a');
+                this.tbr08.tfd04.lbl01.setText('n/a');
                 
                 this.tbr10.tfd02.setText(msToISO(this.qInstance.startTime));
                 this.tbr10.tfd04.setText('n/a');
@@ -1224,7 +1406,7 @@ EIGERCmdInformation.prototype = {
                 
                 this.tbr02.tfd04.setText(this.qInstance.request.status);
                 this.tbr03.tfd04.setText(this.qInstance.request.statusText);
-                this.tbr08.tfd04.setText(this.qInstance.request.responseText);
+                this.tbr08.tfd04.lbl01.setText(this.qInstance.request.responseText);
                 this.tbr08.tfd04.setTitle(this.qInstance.request.responseText);
                 
                 this.tbr10.tfd02.setText(msToISO(this.qInstance.startTime));
@@ -1237,12 +1419,12 @@ EIGERCmdInformation.prototype = {
                     this.tbr02.tfd04.setText(this.qInstance.request.status);
                     this.tbr03.tfd04.setText(this.qInstance.request.statusText);
                     this.tbr03.tfd04.setTitle(this.qInstance.request.statusText);
-                    this.tbr08.tfd04.setText(this.qInstance.request.responseText);
+                    this.tbr08.tfd04.lbl01.setText(this.qInstance.request.responseText);
                     this.tbr08.tfd04.setTitle(this.qInstance.request.responseText);
                 } catch (err) {
                     this.tbr02.tfd04.setText('n/a');
                     this.tbr03.tfd04.setText('error');
-                    this.tbr08.tfd04.setText('n/a');
+                    this.tbr08.tfd04.lbl01.setText('n/a');
                 }
                 try {
                     this.tbr10.tfd02.setText(msToISO(this.qInstance.startTime));
@@ -1364,6 +1546,7 @@ EIGERSubseqCmdHandler.prototype = {
 	EXEC_EXT : 1,
 	EXEC_CLICK : 2,
 	EXEC_ICLICK : 3,
+	EXEC_VCLICK : 4,
 	ENDING_COMMAND : true,
 	NONENDING_COMMAND : false,
 	addCmd : function(fObj, fOpts, execStyle, endingCommand) {
@@ -1414,6 +1597,7 @@ EIGERSubseqCmdHandler.prototype = {
 						break;
 					case this.EXEC_CLICK:
 					case this.EXEC_ICLICK:
+					case this.EXEC_VCLICK:
 						var id = this.listOfQueues[eIter]['qObject'].getId();
 						this.rows[id].btn01.setDisabled(false);
 						break;
@@ -1461,7 +1645,10 @@ EIGERSubseqCmdHandler.prototype = {
 				this.rows[id].tfd03.ind01.warning();
 				if (qListItem['execStyle'] === this.EXEC_CLICK || qListItem['execStyle'] === this.EXEC_ICLICK) {
 					this.rows[id].btn01.remove();
-				}
+				} else if (qListItem['execStyle'] === this.EXEC_VCLICK) {
+					this.rows[id].btn01.remove();
+					this.rows[id].inp01.remove();
+                }
 			} else if  ( qInstance.status === 2 ) {
 				this.rows[id].tfd03.ind01.setText('sucess');
 				this.rows[id].tfd03.ind01.ok();
@@ -1503,7 +1690,25 @@ EIGERSubseqCmdHandler.prototype = {
 				if (qListItem['execStyle'] === this.EXEC_CLICK) {
 					this.rows[id].btn01.setDisabled(true);
 				}
-			}
+			} else if (qListItem['execStyle'] === this.EXEC_VCLICK) {
+                this.rows[id].inp01 = this.rows[id].tfd04.addWidget(Input, []);
+                this.rows[id].inp01.label.remove();
+                this.rows[id].inp01.nwl01.setVisibility(false);
+                this.rows[id].tfd04.addNewLine();
+                this.rows[id].btn01 = this.rows[id].tfd04.addWidget(Button, ['exec']);
+				this.rows[id].btn01.setDisabled(true);
+                this.rows[id].inp01.setWidth('50px');
+                this.rows[id].btn01.click(function (event) {
+                    var value = parseFloat(callee.rows[id].inp01.getValue());
+                    if (!isNaN(value)) {
+                        qInstance.data = JSON.stringify({'value':value});
+                        qInstance.exec();
+                    } else {
+                        alert('Failed casting to float...')
+                    }
+                }, qInstance);
+                
+            }
 			this.updateQItem(qInstance);
 		}
 	},

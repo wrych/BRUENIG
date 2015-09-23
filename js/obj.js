@@ -24,6 +24,34 @@ function toLocalISO(datetime) {
         + ':' + pad(tzo % 60);
 }
 
+filterInt = function (value) {
+  if(/^(\-|\+)?([0-9]+|Infinity)$/.test(value))
+    return Number(value);
+  return NaN;
+}
+
+function prettyJSON(json) {
+    if (typeof json == 'string') {
+         json = JSON.stringify(JSON.parse(json), undefined, 2);
+    }
+    json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return json.replace(/("(\\u[a-zA&amp;'-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+        var cls = 'number';
+        if (/^"/.test(match)) {
+            if (/:$/.test(match)) {
+                cls = 'key';
+            } else {
+                cls = 'string';
+            }
+        } else if (/true|false/.test(match)) {
+            cls = 'boolean';
+        } else if (/null/.test(match)) {
+            cls = 'null';
+        }
+        return '<span class="' + cls + '">' + match + '</span>';
+    });
+}
+
 function extend(base, sub) {
   var origProto = sub.prototype;
   sub.prototype = Object.create(base.prototype);
@@ -275,11 +303,39 @@ ContainerArea.prototype = {
 	}
 };
 
+function Pre(parent, id, name, description) {
+	ContainerArea.call(this, parent, id, name, description);
+	this.type = 'Pre'
+	this.jPre = $('<pre/>').appendTo(this.jElement)
+	this.jPre.appendTo(this.jElement)
+}
+
+Pre.prototype = {
+    setWidth : function (value) {
+		this.getJElement().width(value);
+		var valueLength = value.length-2;
+		var valueInt = value.substr(0,valueLength);
+		this.jPre.width(sprintf('%spx',parseInt(valueInt)-25));
+	},
+    setHeight : function (value) {
+		this.getJElement().height(value);
+		var valueLength = value.length-2;
+		var valueInt = value.substr(0,valueLength);
+		this.jPre.height(sprintf('%spx',parseInt(valueInt)-30));
+	},
+    html : function (args) {
+        this.jPre.html.apply(this.jPre,arguments);
+    },
+    empty : function (args) {
+        this.jPre.empty.apply(this.jPre,arguments);
+    }
+};
+
 function Input(parent, id, name, description) {
 	ContainerArea.call(this, parent, id, name, description);
 	this.type = 'Input'
 	this.label = new _Label(this, this.id, this.name, this.description)
-	$('<br>').appendTo(this.jElement)
+	this.nwl01 = this.addNewLine();
 	this.jInput = $('<input>').prop(
 		{
 			type: 'Text'
@@ -452,11 +508,10 @@ function _Label(parent, id, name, description) {
 
 _Label.prototype = {
 	setText : function(value) {
-		this.text = value;
 		this.getJElement().text(value);
 	},
 	getText : function() {
-		return this.text;
+		return this.getJElement().text();
 	}
 }
 
@@ -471,7 +526,7 @@ Label.prototype = {
 		this.label.setText.apply(this.label,arguments)
 	},
 	getText : function(args) {
-		this.label.getText.apply(this.label,arguments)
+		return this.label.getText.apply(this.label,arguments)
 	},
 	setWidth : function (value) {
 		this.getJElement().width(value);
@@ -868,6 +923,7 @@ extend(ContainerArea, CheckBox);
 extend(ContainerArea, Extendable);
 extend(ContainerArea, Title);
 extend(ContainerArea, Image);
+extend(ContainerArea, Pre);
 extend(ContainerArea, Input);
 extend(ContainerArea, Select);
 extend(ContainerArea, Indicator);
@@ -1012,6 +1068,11 @@ TableField.prototype = {
 		var widget = construct(arguments[0],defaultArgs.concat(arguments[1]));
 		this.widgetList.push(widget);
 		return widget;
+	},
+	addNewLine : function() {
+        var newLine = new LineBreak();
+		newLine.getJElement().appendTo(this.jElement);
+        return newLine;
 	}
 };
 

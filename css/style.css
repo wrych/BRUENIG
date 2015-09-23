@@ -143,6 +143,7 @@ input:focus {
 }
 
 .overlay-display{	
+        padding: 5px;
 	color: #868786;
 	background-color: white;
 	position: fixed;
@@ -182,3 +183,9 @@ td {
 .dectris-background{
 	background-color: #004B99;
 }
+
+.string { color: green; }
+.number { color: darkorange; }
+.boolean { color: blue; }
+.null { color: magenta; }
+.key { color: red; }
