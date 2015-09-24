@@ -52,6 +52,7 @@ function EIGERQuery(instance, handler, method, data) {
 	this.instance = instance;
 	this.data = data;
 	this.status = 0;
+    this.progressText = '';
 };
 
 EIGERQuery.prototype = {
@@ -103,8 +104,13 @@ function EIGERMQuery(handler, cmd, widget, newQItemCallback, updateQItemCallback
 	this.id = undefined;
 	this.handler = handler;
 	this.status = 0;
+    this.progressText = '';
 	
-	this.listOfQueues = cmd[0].apply(cmd[1][0],cmd[1]);
+    if ( typeof cmd[0] === 'function' ) {
+        this.listOfQueues = cmd[0].apply(cmd[1][0],cmd[1]);
+    } else {
+        this.listOfQueues = cmd;
+    }
 	
 	this.qDone = 0;
 	this.qCount = this.listOfQueues.length;
@@ -191,7 +197,8 @@ EIGERHandler.prototype = {
 		qInstance.setId(id);
 		this.notifyQListenerNew(qInstance);
 		this.activeQueries[id] = qInstance;
-		if (!noExec) {
+		qInstance.progressText = 'Quered';
+        if (!noExec) {
 			qInstance.exec();
 		}
 		return qInstance;
@@ -261,6 +268,7 @@ EIGERHandler.prototype = {
 	},
 	execQuery: function(qInstance) {
 		qInstance.setStatus(1);
+		qInstance.progressText = 'Sent';
 		this.notifyQListenerUpdate(qInstance);
 		var callee = this;
 		if (qInstance.instance.versionInURI === true) {
@@ -280,25 +288,11 @@ EIGERHandler.prototype = {
 				qInstance.instance.index);
 		};
 		qInstance.startTime = new Date().getTime();
-        switch (qInstance.instance.index) {
-            case 'trigger' :
-                var timeout = (qInstance.instance.superDet.detector.config.frame_time.value.value*qInstance.instance.superDet.detector.config.nimages.value.value+10)*2000;
-                console.log(sprintf('Setting timeout %s ms (%s)...', timeout, qInstance.instance.index));
-                break;
-            case 'arm':
-            case 'initialize':
-                var timeout = 330000;
-                console.log(sprintf('Setting timeout %s ms (%s)...', timeout, qInstance.instance.index));
-                break;
-            default:
-                var timeout = 60000;
-                break
-        }
 		qInstance.request = $.ajax({
 			url: url,
 			type: qInstance.method,
 			contentType: "application/json",
-            timeout: timeout,
+            timeout: 0,
 			data: qInstance.data
 			});
 		qInstance.request.done(function(data) { 
@@ -309,22 +303,105 @@ EIGERHandler.prototype = {
 		});
 
 	},
-	sucess : function(qInstance, data) {
-		qInstance.setStatus(2);
-		qInstance.endTime = new Date().getTime();
+    sucess : function (qInstance, data) {
 		qInstance.setResponse(data);
+        // Remove <&& qInstance.instance.domain === 'detector'> once API is consistent :)
+        if (qInstance.method === 'PUT' && qInstance.instance.subdomain.index === 'config' && qInstance.instance.domain.index === 'detector') {
+            this._putSuccess(qInstance, data);
+        } else {
+            this._success(qInstance, data);
+        }
+    },
+	_success : function(qInstance, data) {
+		qInstance.setStatus(2);
+		qInstance.progressText = 'Done';
+		qInstance.endTime = new Date().getTime();
 		this.notifyQListenerUpdate(qInstance);
 		this.history++;
 		delete this.activeQueries[qInstance.id];
 	},
+    _putSuccess : function (qInstance, data) {
+        var changedKeys = data;
+		var domain = qInstance.instance.domain;
+		var subdomain = qInstance.instance.subdomain;
+		
+        if (!isNaN(Number(changedKeys.length)) && changedKeys.length > 0) {
+            var qList = [];
+            for (var i = 0 ; i < changedKeys.length ; i++) {
+                if ( !inExcludedKeys(changedKeys[i]) ) {
+                    var qInst = this.add2Queue(new EIGERQuery(subdomain[changedKeys[i]], this, 'GET'));
+                    qList.push(qInst);
+                }
+            }
+            var mQ = new EIGERMQuery(this, qList, this, function () {}, this._updateMQ);
+            mQ.mainQ = qInstance;
+            this.add2Queue(mQ);
+        }
+    },
+    _updateMQ : function (qMInstance) {
+        qMInstance.mainQ.progressText = sprintf('UD %3.1f%%',qMInstance.getProgress()*100);
+		this.notifyQListenerUpdate(qMInstance.mainQ);
+        if (qMInstance.status === 2) {		
+            this.history++;
+            delete this.activeQueries[qMInstance.id];
+            this._success(qMInstance.mainQ, qMInstance.mainQ.response);
+        }
+    },
 	error : function(qInstance, data) {
-		qInstance.setResponse(data);
-		qInstance.setStatus(-1);
+        switch (qInstance.instance.index) {
+            case 'trigger' :
+                this.stateListener(qInstance, 'ready', ['acquire']);
+                break;
+            case 'arm':
+                this.stateListener(qInstance, 'ready', ['configure']);
+                break;
+            case 'initialize':
+                this.stateListener(qInstance, 'idle', ['initialize']);
+                break;
+            default:
+                this._error(qInstance, data);
+                break;
+        }
+	},
+    _error : function (qInstance, data) {
+        qInstance.setResponse(data);
+		qInstance.progressText = 'Error';
+        qInstance.setStatus(-1);
+        this.notifyQListenerUpdate(qInstance);
+        this.history[qInstance.id] = qInstance;
+        this.history++;
+        delete this.activeQueries[qInstance.id];  
+    },
+    stateListener : function (qInstance, successState, allowedStates) {
+        qInstance.progressText = 'StateMode';
+        console.log(sprintf('Request timedout, changing to state listener mode...', qInstance.instance.index));
 		this.notifyQListenerUpdate(qInstance);
-		this.history[qInstance.id] = qInstance;
-		this.history++;
-		delete this.activeQueries[qInstance.id];
-	}
+        var callee = this;
+        var listenerIndex = qInstance.instance.superDet.detector.status.state.refresh( function () {
+            callee.stateChange.apply(callee, [qInstance, successState, allowedStates])
+        }, this);
+        qInstance.listenerIndex = listenerIndex;
+    },
+    stateChange : function (qInstance, successState, allowedStates) {
+        var state = qInstance.instance.superDet.detector.status.state.value.value;
+        console.log(sprintf('Checking state: %s (value: %s, expected: %s)', state === successState,state, successState));
+        if (state === successState) {
+            qInstance.instance.superDet.detector.status.state.unbindRefresh(qInstance.listenerIndex);
+            this.sucess(qInstance);
+        } else {
+            var failState = true;
+            for (var index in  allowedStates) {
+                if (allowedStates[index] === state) {
+                    failState = false;
+                    break;
+                }
+            }
+            if (failState) {
+                qInstance.instance.superDet.detector.status.state.unbindRefresh(qInstance.listenerIndex);
+                this._error(qInstance);
+            }
+        }
+    }
 };
 
 function EIGERContainer() {
@@ -343,11 +420,14 @@ EIGERContainer.prototype = {
 		return containerList;
 	},	
 	refresh : function (action, thisArg) {
-		this.refreshListeners.push([action, thisArg]);
+		return this.refreshListeners.push([action, thisArg])-1;
 	},
+    unbindRefresh : function (listenerIndex) {
+		return delete this.refreshListeners[listenerIndex];
+    },
 	refreshed: function(event){
-		for (var i = 0 ; i < this.refreshListeners.length ; i++) {
-			this.refreshListeners[i][0].apply(this.refreshListeners[i][1], [event]);
+		for (var index in this.refreshListeners) {
+			this.refreshListeners[index][0].apply(this.refreshListeners[index][1], [event]);
 		}
 	},	
 	queueQuery : function(method, data, noExec) {
@@ -385,17 +465,11 @@ function EIGER(address, port, handler, version) {
 	this.address = address;
 	this.port = port;
 	this.index = 'detector';
-	//if (version === undefined){
-		this.version = defaultVersion;
-	//} else {
-	//	this.version = version;
-	//};
-	console.log(this);
+	this.version = defaultVersion;
 	
 	this.connectionStateID = 0;
 	
 	this.handler = handler;
-	console.log(handler);
 	this.children = this.addChilds(domains);
 	
 	this.handler.addQueueListener(this, this.updateQItem) 

@@ -696,13 +696,13 @@ EIGERCmdLogger.prototype = {
 		var callee = this;
 		
 		if ( qInstance.status === 0 ) {
-			this.rows[id].tfd03.ind01.setText('queued');
+			this.rows[id].tfd03.ind01.setText(qInstance.progressText);
 			this.rows[id].tfd03.ind01.grey();
 		} else if  ( qInstance.status === 1 ) {
-			this.rows[id].tfd03.ind01.setText('sent');
+			this.rows[id].tfd03.ind01.setText(qInstance.progressText);
 			this.rows[id].tfd03.ind01.warning();
 		} else if  ( qInstance.status === 2 ) {
-			this.rows[id].tfd03.ind01.setText('sucess');
+			this.rows[id].tfd03.ind01.setText(qInstance.progressText);
 			this.rows[id].tfd03.ind01.ok();
 			this.rows[id].getJElement().delay(500).slideUp(100, function() {
 				callee.rows[id].getJElement().remove();
@@ -711,7 +711,7 @@ EIGERCmdLogger.prototype = {
 			});
 		} else if  ( qInstance.status < 0 ) {
 			if (this.rows[id] !== undefined) {
-				this.rows[id].tfd03.ind01.setText('error');
+				this.rows[id].tfd03.ind01.setText(qInstance.progressText);
 				this.rows[id].tfd03.ind01.error();
 				if (qInstance.response){
 					this.rows[id].tfd04.setText(qInstance.response.statusText);
@@ -1364,7 +1364,7 @@ EIGERCmdInformation.prototype = {
 				this.qInstance.instance.subdomain.index, 
 				this.qInstance.instance.index);
         }
-        this.lbl01.setText(url);
+        this.lbl01.setText(qInstance.method, url);
         this.update();
     },
     update : function () {
@@ -1635,13 +1635,13 @@ EIGERSubseqCmdHandler.prototype = {
 		if (qListItem) {
 			var id = qInstance.getId();
 			if ( qInstance.status === 0 ) {
-				this.rows[id].tfd03.ind01.setText('queued');
+				this.rows[id].tfd03.ind01.setText(qInstance.progressText);
 				this.rows[id].tfd03.ind01.grey();
 			} else if  ( qInstance.status === 1 ) {
 				if (this.status > -1 ) {
 					this.status = 1;
 				}
-				this.rows[id].tfd03.ind01.setText('sent');
+				this.rows[id].tfd03.ind01.setText(qInstance.progressText);
 				this.rows[id].tfd03.ind01.warning();
 				if (qListItem['execStyle'] === this.EXEC_CLICK || qListItem['execStyle'] === this.EXEC_ICLICK) {
 					this.rows[id].btn01.remove();
@@ -1650,7 +1650,7 @@ EIGERSubseqCmdHandler.prototype = {
 					this.rows[id].inp01.remove();
                 }
 			} else if  ( qInstance.status === 2 ) {
-				this.rows[id].tfd03.ind01.setText('sucess');
+				this.rows[id].tfd03.ind01.setText(qInstance.progressText);
 				this.rows[id].tfd03.ind01.ok();
 				if ( qListItem['endingCommand'] === this.ENDING_COMMAND ) {
 					this.end();
@@ -1662,7 +1662,7 @@ EIGERSubseqCmdHandler.prototype = {
 				this.statusText = qInstance.response.statusText;
 				this.status = qInstance.status;
 				
-				this.rows[id].tfd03.ind01.setText('error');
+				this.rows[id].tfd03.ind01.setText(qInstance.progressText);
 				this.rows[id].tfd03.ind01.error();
 				this.rows[id].tfd04.setText(this.statusText);
 				this.rows[id].tfd04.setTitle(this.statusText);
@@ -1719,23 +1719,19 @@ EIGERSubseqCmdHandler.prototype = {
 	updateMQItem : function (mQInstance) {
 		var id = mQInstance.getId();
 		if ( mQInstance.status === 0 ) {
-			this.rows[id].tfd03.ind01.setText('queued');
-			this.rows[id].tfd03.ind01.grey();
+			this.rows[id].tfd03.setText('queued');
 		} else if  ( mQInstance.status === 1 ) {
 			if (this.status > -1 ) {
 				this.status = 1;
 			}
-			this.rows[id].tfd03.ind01.setText(sprintf('%s/%s',mQInstance.getQDone(), mQInstance.getQCount()));
-			this.rows[id].tfd02.prb01.setProgress(mQInstance.getProgress());
-			this.rows[id].tfd03.ind01.warning();
+			this.rows[id].tfd03.setText(sprintf('%3.1f%%',(mQInstance.getProgress()*100)));
+            this.rows[id].tfd02.prb01.setProgress(mQInstance.getProgress());
 		} else if  ( mQInstance.status === 2 ) {
-			this.rows[id].tfd03.ind01.setText('sucess');
-			this.rows[id].tfd03.ind01.ok();
+			this.rows[id].tfd03.setText('sucess');
 			this.exec();
 		} else if  ( mQInstance.status < 0  && this.status >= 0) {
 			this.rows[id].tfd02.prb01.setProgress(mQInstance.getProgress());
-			this.rows[id].tfd03.ind01.setText('error');
-			this.rows[id].tfd03.ind01.error();
+			this.rows[id].tfd03.setText('error');
 			this.rows[id].tfd04.setText('An error occured.');
 			this.rows[id].tfd04.setTitle('An error occured.');
 			this.status = mQInstance.status;
@@ -1805,10 +1801,20 @@ EIGERTableRow.prototype = {
 };
 
 function EIGERTableMCRow(parent, id, name, description) {
-	EIGERTableRow.call(this, parent, id, name, description);
-	this.tfd02.setText('');
+	TableRow.call(this, parent, id, name, description);
+	this.tfd01 = this.addWidget(TableField, []);
+	this.tfd01.setText('ID');
+	this.tfd01.setWidth('40px');
+	this.tfd02 = this.addWidget(TableField, []);
+	this.tfd02.setWidth('640px');
 	this.tfd02.prb01 = this.tfd02.addWidget(Progressbar,[]);
-	this.tfd02.prb01.setProgress(0);
+	this.tfd02.prb01.setProgress(0);	
+	this.tfd03 = this.addWidget(TableField, []);
+	this.tfd03.setText('Status');
+	this.tfd03.setWidth('100px');
+	this.tfd04 = this.addWidget(TableField, []);
+	this.tfd04.setText('Error');
+	this.tfd04.setWidth('70px');
 }
 
 EIGERTableMCRow.prototype = {
@@ -1828,7 +1834,7 @@ EIGERTableMCRow.prototype = {
 };
 
 extend(TableRow, EIGERTableRow);
-extend(EIGERTableRow, EIGERTableMCRow);
+extend(TableRow, EIGERTableMCRow);
 extend(EIGERTableRow, EIGERDataTableRow);
 
 var fu = 0;
@@ -2122,7 +2128,7 @@ EIGERUiConnector.prototype = {
 		if (changed) {
 			console.log(sprintf('Changed %s to: %s (from: %s)',this.eigerValue.index, this.widget.getValue(), this.eigerValue.value.value));
 				
-			this.cmd01 = new EIGERSubseqCmdPrompt( this.eUi.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.putSuccess, this, [submit]],'error' : [this.putError, this, []]});
+			this.cmd01 = new EIGERSubseqCmdPrompt( this.eUi.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.success, this, [submit]],'error' : [this.putError, this, []]});
 			
 			this.cmd01.setTitle(sprintf('Updating value %s...', this.eigerValue.index));
 			this.cmd01.setCmdHeight('35px');
@@ -2137,7 +2143,7 @@ EIGERUiConnector.prototype = {
 		}
 		this.setInterval();
 	},
-	getSuccess : function(data, submit) {
+	success : function(data, submit) {
 		this.cmd01 = '';
         if (submit) {
             this.reattachSubmit();
@@ -2162,28 +2168,5 @@ EIGERUiConnector.prototype = {
     error : function(data) {
 		this.cmd01 = '';
         this.reattachSubmit();
-    },
-	putSuccess : function(data, submit) {
-		this.cmd01 = '';
-		var changedKeys = data.listOfQueues[0]['qObject'].response;
-		var domain = data.listOfQueues[0]['qObject'].instance.domain.index;
-		var subdomain = data.listOfQueues[0]['qObject'].instance.subdomain.index;
-		
-        if (!isNaN(Number(changedKeys.length)) && changedKeys.length > 0) {
-            console.log(sprintf('Refreshing dependent keys %s:%s:%s...', domain, subdomain, changedKeys.join()));
-
-            this.cmd01 = new EIGERSubseqCmdPrompt( this.eUi.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.getSuccess, this, [submit]],'error' : [this.error, this, []]});
-
-            this.cmd01.setTitle(sprintf('Refreshing dependent keys (%s)...', this.eigerValue.index));
-
-            var cmdHeight = sprintf('%spx',30*changedKeys.length);
-            this.cmd01.setCmdHeight(cmdHeight);
-
-            for (var i = 0 ; i < changedKeys.length ; i++) {
-                if ( !inExcludedKeys(changedKeys[i]) ) {
-                    this.cmd01.addCmd(this.eUi.e[domain][subdomain][changedKeys[i]], ['GET', '']);
-                }
-            }
-        }
-	}
+    }
 };

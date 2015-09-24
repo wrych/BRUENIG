@@ -165,6 +165,19 @@ Area.prototype = {
 			};
 		});
 	},
+	click : function (action, thisArg) {
+		return this.clickListeners.push([action, thisArg])-1;
+	},
+    unbindClick : function (listenerIndex) {
+        return delete this.clickListeners[listenerIndex];
+    },
+	clicked: function(event){
+		if (!this.disabled) {
+			for (var index in this.clickListeners) {
+				this.clickListeners[index][0].apply(this.clickListeners[index][1], [event]);
+			}
+		}
+	},
 	addHoverListener: function(area, actionIn, actionOut){
 		var callee = this;
 		$( area ).mouseenter( function (event) {
@@ -483,16 +496,6 @@ Extendable.prototype = {
     addContent : function(args) {
         return this.containerArea.addWidget.apply(this.containerArea, arguments);
     },
-	click : function (action, thisArg) {
-		this.clickListeners.push([action, thisArg])
-	},
-	clicked: function(event){
-		if (!this.disabled) {
-			for (var i = 0 ; i < this.clickListeners.length ; i++) {
-				this.clickListeners[i][0].apply(this.clickListeners[i][1], [event]);
-			}
-		}
-	},
     setTitle : function (args) {
         this.tlt01.setText.apply(this.tlt01,arguments)
     }
@@ -728,7 +731,7 @@ Form.prototype = {
 function _Button(parent, id, name, description) {
 	WidgetArea.call(this, parent, id, name, description);
 	this.type = '_Button'
-	this.jElement.addClass('label'); ////////////////////////////////TODO
+	this.jElement.addClass('button');
 	this.jButton = $('<input/>').prop(
 		{
 			type : 'button'
@@ -761,7 +764,7 @@ _Button.prototype = {
 
 function Button(parent, id, name, description, text, imagePath) {
 	ContainerArea.call(this, parent, id, name, description);
-	this.jElement.addClass('button');
+    this.type = 'Button';
 	if (typeof imagePath !== 'undefined'){
 		this.image = $('<img class="buttonImage">').appendTo(this.jElement);
 		this.image.attr("src", imagePath);
@@ -769,21 +772,11 @@ function Button(parent, id, name, description, text, imagePath) {
 	this.button = new _Button(this, uniId++, this.name, this.description)
 	this.setText(text);
 	this.clickListeners = [];
-	this.addClickListener(this.jElement, this.clicked);
+	this.addClickListener(this.button.getJElement(), this.clicked);
 	this.disabled = false;
 }
 
 Button.prototype = {
-	click : function (action, thisArg) {
-		this.clickListeners.push([action, thisArg])
-	},
-	clicked: function(event){
-		if (!this.disabled) {
-			for (var i = 0 ; i < this.clickListeners.length ; i++) {
-				this.clickListeners[i][0].apply(this.clickListeners[i][1], [event]);
-			}
-		}
-	},	
 	setText : function(args) {
 		this.button.setText.apply(this.button,arguments)
 	},
@@ -841,16 +834,6 @@ function NavButton(parent, id, name, description, text, imagePath) {
 }
 
 NavButton.prototype = {
-	click : function (action, thisArg) {
-		this.clickListeners.push([action, thisArg]);
-	},
-	clicked: function(event){
-		if (!this.disabled) {
-			for (var i = 0 ; i < this.clickListeners.length ; i++) {
-				this.clickListeners[i][0].apply(this.clickListeners[i][1], [event]);
-			}
-		}
-	},
 	setText : function(args) {
 		this.label.setText.apply(this.label,arguments);
 	},
@@ -868,12 +851,12 @@ function Overlay(parent, id, name, description, callee) {
 }
 
 Overlay.prototype = {
-	click : function(event) {
+	clickClose : function(event) {
 		this.remove();
 	},
 	setClickClose : function(value) {
 		if ( value ) {
-			this.addClickListener(this.jElement, this.click);
+			this.addClickListener(this.jElement, this.clickClose);
 		} else {
 			this.removeClickListener(this.jElement);
 		}
@@ -971,6 +954,19 @@ Tabular.prototype = {
 	removeClickListener: function (area) {
 		$( area ).unbind( "click" );
 	},
+	click : function (action, thisArg) {
+		return this.clickListeners.push([action, thisArg])-1;
+	},
+    unbindClick : function (listenerIndex) {
+        return delete this.clickListeners[listenerIndex];
+    },
+	clicked: function(event){
+		if (!this.disabled) {
+			for (var index in this.clickListeners) {
+				this.clickListeners[index][0].apply(this.clickListeners[index][1], [event]);
+			}
+		}
+	},
 	addHoverListener: function(area, actionIn, actionOut){
 		var callee = this;
 		$( area ).mouseenter( function (event) {
@@ -1038,17 +1034,7 @@ function TableField(parent, id, name, description) {
 	this.addClickListener(this.jElement, this.clicked);
 };
 
-TableField.prototype = {	
-    click : function (action, thisArg) {
-		this.clickListeners.push([action, thisArg])
-	},
-	clicked: function(event){
-		if (!this.disabled) {
-			for (var i = 0 ; i < this.clickListeners.length ; i++) {
-				this.clickListeners[i][0].apply(this.clickListeners[i][1], [event]);
-			}
-		}
-	},	
+TableField.prototype = {
 	setWidth : function(value) {
 		this.getJElement().width(value)
 		this.getJElement().css({'max-width':value})

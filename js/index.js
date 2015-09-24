@@ -121,7 +121,7 @@ $( document ).ready(function() {
 	var st01_ind01 = st01.addWidget(Indicator,[]);
 	st01_ind01.setText('Not Connected');
 	st01_ind01.setWidth('120px');
-	eUi.uiConnect(st01_ind01, eUi.e.detector.status.state, 1);
+	eUi.uiConnect(st01_ind01, eUi.e.detector.status.state, .2);
 
 	
 	// Navigation
