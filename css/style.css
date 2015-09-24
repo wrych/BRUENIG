@@ -68,11 +68,11 @@ input:focus {
 }
 
 .container {
-	display: inline-block;
-    white-space: nowrap;
-	position: relative;
-	margin: 1px;
-	border: 0px;
+        display: inline-block;
+        white-space: nowrap;
+        position: relative;
+        margin: 1px;
+        border: 0px;
 }
 
 .verScrolling {
@@ -112,6 +112,13 @@ input:focus {
 	height: 14px;
 }
 
+.expandable {
+	border-radius: 5px;
+	-webkit-box-shadow: 0px 0px 2px 0px rgba(48,69,158,0.75);
+	-moz-box-shadow: 0px 0px 2px 0px rgba(48,69,158,0.75);
+	box-shadow: 0px 0px 2px 0px rgba(48,69,158,0.75);
+}
+
 .progressbar-container{
 	-webkit-box-shadow: 0px 0px 2px 0px rgba(48,69,158,0.75);
 	-moz-box-shadow: 0px 0px 2px 0px rgba(48,69,158,0.75);
@@ -121,6 +128,9 @@ input:focus {
 .progressbar-progress{
 	background-color: #004B99;
 	height: 10px;
+	-webkit-box-shadow: 0px 0px 2px 0px rgba(48,69,158,0.75);
+	-moz-box-shadow: 0px 0px 2px 0px rgba(48,69,158,0.75);
+	box-shadow: 0px 0px 2px 0px rgba(48,69,158,0.75);
 }
 
 .overlay-background{
@@ -136,6 +146,7 @@ input:focus {
 }
 
 .overlay-display{	
+        padding: 5px;
 	color: #868786;
 	background-color: white;
 	position: fixed;
@@ -175,3 +186,9 @@ td {
 .dectris-background{
 	background-color: #004B99;
 }
+
+.string { color: green; }
+.number { color: darkorange; }
+.boolean { color: blue; }
+.null { color: magenta; }
+.key { color: red; }
