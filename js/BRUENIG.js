@@ -20,8 +20,36 @@ function toLocalISO(datetime) {
         + ':' + pad(datetime.getMinutes()) 
         + ':' + pad(datetime.getSeconds()) 
         + '.' + pad(datetime.getMilliseconds()) 
-        + dif + pad(tzo / 60) 
+        + dif + pad(tzo / 60);
         + ':' + pad(tzo % 60);
+}
+
+filterInt = function (value) {
+  if(/^(\-|\+)?([0-9]+|Infinity)$/.test(value))
+    return Number(value);
+  return NaN;
+}
+
+function prettyJSON(json) {
+    if (typeof json == 'string') {
+         json = JSON.stringify(JSON.parse(json), undefined, 2);
+    }
+    json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return json.replace(/("(\\u[a-zA&amp;'-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+        var cls = 'number';
+        if (/^"/.test(match)) {
+            if (/:$/.test(match)) {
+                cls = 'key';
+            } else {
+                cls = 'string';
+            }
+        } else if (/true|false/.test(match)) {
+            cls = 'boolean';
+        } else if (/null/.test(match)) {
+            cls = 'null';
+        }
+        return '<span class="' + cls + '">' + match + '</span>';
+    });
 }
 
 function extend(base, sub) {
@@ -137,6 +165,19 @@ Area.prototype = {
 			};
 		});
 	},
+	click : function (action, thisArg) {
+		return this.clickListeners.push([action, thisArg])-1;
+	},
+    unbindClick : function (listenerIndex) {
+        return delete this.clickListeners[listenerIndex];
+    },
+	clicked: function(event){
+		if (!this.disabled) {
+			for (var index in this.clickListeners) {
+				this.clickListeners[index][0].apply(this.clickListeners[index][1], [event]);
+			}
+		}
+	},
 	addHoverListener: function(area, actionIn, actionOut){
 		var callee = this;
 		$( area ).mouseenter( function (event) {
@@ -223,6 +264,29 @@ BlockArea.prototype = {
 	}
 };
 
+function ViewArea(parent, id, name, description) {
+	BlockArea.call(this, parent, id, name, description);
+    this.active = true;
+}
+
+ViewArea.prototype = {
+    setVisibility : function (visibility) {
+		if (visibility) {
+			this.getJElement().show();
+            this.active = true;
+            this.activate();
+		} else {
+			this.getJElement().hide();
+            if (this.active) {
+                this.active = false;
+                this.leave();
+            }
+		}
+	},
+    activate : function () {},
+    leave : function () {}
+};
+
 function WidgetArea(parent, id, name, description) {
 	Area.call(this, parent, id, name, description);
 	this.jElement.addClass('widget');
@@ -252,11 +316,39 @@ ContainerArea.prototype = {
 	}
 };
 
+function Pre(parent, id, name, description) {
+	ContainerArea.call(this, parent, id, name, description);
+	this.type = 'Pre'
+	this.jPre = $('<pre/>').appendTo(this.jElement)
+	this.jPre.appendTo(this.jElement)
+}
+
+Pre.prototype = {
+    setWidth : function (value) {
+		this.getJElement().width(value);
+		var valueLength = value.length-2;
+		var valueInt = value.substr(0,valueLength);
+		this.jPre.width(sprintf('%spx',parseInt(valueInt)-25));
+	},
+    setHeight : function (value) {
+		this.getJElement().height(value);
+		var valueLength = value.length-2;
+		var valueInt = value.substr(0,valueLength);
+		this.jPre.height(sprintf('%spx',parseInt(valueInt)-30));
+	},
+    html : function (args) {
+        this.jPre.html.apply(this.jPre,arguments);
+    },
+    empty : function (args) {
+        this.jPre.empty.apply(this.jPre,arguments);
+    }
+};
+
 function Input(parent, id, name, description) {
 	ContainerArea.call(this, parent, id, name, description);
 	this.type = 'Input'
 	this.label = new _Label(this, this.id, this.name, this.description)
-	$('<br>').appendTo(this.jElement)
+	this.nwl01 = this.addNewLine();
 	this.jInput = $('<input>').prop(
 		{
 			type: 'Text'
@@ -290,14 +382,14 @@ Input.prototype = {
 	getTitle : function(args) {
 		this.label.getText.apply(this.label,arguments);
 	}
-}
+};
 
 function CheckBox(parent, id, name, description) {
 	ContainerArea.call(this, parent, id, name, description);
-	this.type = 'CheckBox'
-	this.label = new _Label(this, this.id, this.name, this.description)
-	$('<br>').appendTo(this.jElement)
-	this.jInput = $('<input type=\'checkbox\'>').appendTo(this.jElement)
+	this.type = 'CheckBox';
+	this.label = new _Label(this, this.id, this.name, this.description);
+	$('<br>').appendTo(this.jElement);
+	this.jInput = $('<input type=\'checkbox\'>').appendTo(this.jElement);
 }
 
 CheckBox.prototype = {
@@ -314,20 +406,20 @@ CheckBox.prototype = {
 		this.jInput.prop('disabled');
 	},
 	setTitle : function(args) {
-		this.label.setText.apply(this.label,arguments)
+		this.label.setText.apply(this.label,arguments);
 	},
 	getTitle : function(args) {
-		this.label.getText.apply(this.label,arguments)
+		this.label.getText.apply(this.label,arguments);
 	}
-}
+};
 
 function Select(parent, id, name, description) {
 	ContainerArea.call(this, parent, id, name, description);
-	this.type = 'Select'
-	this.length = 0
-	this.label = new _Label(this, this.id, this.name, this.description)
-	$('<br>').appendTo(this.jElement)
-	this.jInput = $('<select></select>').appendTo(this.jElement)
+	this.type = 'Select';
+	this.length = 0;
+	this.label = new _Label(this, this.id, this.name, this.description);
+	$('<br>').appendTo(this.jElement);
+	this.jInput = $('<select></select>').appendTo(this.jElement);
 }
 
 Select.prototype = {
@@ -362,11 +454,56 @@ Select.prototype = {
 	getTitle : function(args) {
 		this.label.getText.apply(this.label,arguments)
 	}
+};
+
+function Extendable(parent, id, name, description) {
+	ContainerArea.call(this, parent, id, name, description);
+    this.jElement.addClass('expandable');
+    
+    this.expanded = false;
+    this.clickListeners = [];
+    
+    this.tlt01 = this.addWidget(Title,[]);
+    this.tlt01.setLvl('h3');
+    this.tlt01.setWidth('800px');
+    
+    this._img01 = this.addWidget(Image,[]);
+	this._img01.setSrc('im/expand.png');
+	this._img01.setWidth('12px');
+    
+    this.addNewLine();
+    
+    this.containerArea = this.addWidget(ContainerArea,[]);
+    this.containerArea.setVisibility(false);
+    
+    this.addClickListener(this.tlt01.jElement, this.clicked);
+    this.addClickListener(this._img01.jElement, this.clicked);
+    this.click(this.toggle, this);
+    
 }
+
+Extendable.prototype = {
+    toggle : function() {
+        if (this.expanded = !this.expanded) {
+            this.containerArea.getJElement().slideDown(300);
+            this._img01.setSrc('im/collapse.png');
+        } else {
+            this.containerArea.getJElement().slideUp(300);
+            this._img01.setSrc('im/expand.png');
+        }
+        
+    },
+    addContent : function(args) {
+        return this.containerArea.addWidget.apply(this.containerArea, arguments);
+    },
+    setTitle : function (args) {
+        this.tlt01.setText.apply(this.tlt01,arguments)
+    }
+};
 
 function _Label(parent, id, name, description) {
 	WidgetArea.call(this, parent, id, name, description);
-	this.type = '_Label'
+	this.type = '_Label';
 	this.jElement.addClass('label');
 	this.setWidth('200px');
 	this.setHeight('18px');
@@ -374,11 +511,10 @@ function _Label(parent, id, name, description) {
 
 _Label.prototype = {
 	setText : function(value) {
-		this.text = value;
 		this.getJElement().text(value);
 	},
 	getText : function() {
-		return this.text;
+		return this.getJElement().text();
 	}
 }
 
@@ -393,7 +529,7 @@ Label.prototype = {
 		this.label.setText.apply(this.label,arguments)
 	},
 	getText : function(args) {
-		this.label.getText.apply(this.label,arguments)
+		return this.label.getText.apply(this.label,arguments)
 	},
 	setWidth : function (value) {
 		this.getJElement().width(value);
@@ -595,7 +731,7 @@ Form.prototype = {
 function _Button(parent, id, name, description) {
 	WidgetArea.call(this, parent, id, name, description);
 	this.type = '_Button'
-	this.jElement.addClass('label'); ////////////////////////////////TODO
+	this.jElement.addClass('button');
 	this.jButton = $('<input/>').prop(
 		{
 			type : 'button'
@@ -628,7 +764,7 @@ _Button.prototype = {
 
 function Button(parent, id, name, description, text, imagePath) {
 	ContainerArea.call(this, parent, id, name, description);
-	this.jElement.addClass('button');
+    this.type = 'Button';
 	if (typeof imagePath !== 'undefined'){
 		this.image = $('<img class="buttonImage">').appendTo(this.jElement);
 		this.image.attr("src", imagePath);
@@ -636,21 +772,11 @@ function Button(parent, id, name, description, text, imagePath) {
 	this.button = new _Button(this, uniId++, this.name, this.description)
 	this.setText(text);
 	this.clickListeners = [];
-	this.addClickListener(this.jElement, this.clicked);
+	this.addClickListener(this.button.getJElement(), this.clicked);
 	this.disabled = false;
 }
 
 Button.prototype = {
-	click : function (action, thisArg) {
-		this.clickListeners.push([action, thisArg])
-	},
-	clicked: function(event){
-		if (!this.disabled) {
-			for (var i = 0 ; i < this.clickListeners.length ; i++) {
-				this.clickListeners[i][0].apply(this.clickListeners[i][1], [event]);
-			}
-		}
-	},	
 	setText : function(args) {
 		this.button.setText.apply(this.button,arguments)
 	},
@@ -708,16 +834,6 @@ function NavButton(parent, id, name, description, text, imagePath) {
 }
 
 NavButton.prototype = {
-	click : function (action, thisArg) {
-		this.clickListeners.push([action, thisArg]);
-	},
-	clicked: function(event){
-		if (!this.disabled) {
-			for (var i = 0 ; i < this.clickListeners.length ; i++) {
-				this.clickListeners[i][0].apply(this.clickListeners[i][1], [event]);
-			}
-		}
-	},
 	setText : function(args) {
 		this.label.setText.apply(this.label,arguments);
 	},
@@ -735,12 +851,12 @@ function Overlay(parent, id, name, description, callee) {
 }
 
 Overlay.prototype = {
-	click : function(event) {
+	clickClose : function(event) {
 		this.remove();
 	},
 	setClickClose : function(value) {
 		if ( value ) {
-			this.addClickListener(this.jElement, this.click);
+			this.addClickListener(this.jElement, this.clickClose);
 		} else {
 			this.removeClickListener(this.jElement);
 		}
@@ -771,6 +887,7 @@ OverlayDisplay.prototype = {
 
 extend(Area, BodyArea);
 extend(Area, BlockArea);
+extend(BlockArea, ViewArea);
 extend(Area, WidgetArea);
 extend(Area, ContainerArea);
 extend(Area, PlacementArea);
@@ -786,8 +903,10 @@ extend(WidgetArea, _StatusIndicator);
 extend(ContainerArea, Form);
 extend(ContainerArea, Label);
 extend(ContainerArea, CheckBox);
+extend(ContainerArea, Extendable);
 extend(ContainerArea, Title);
 extend(ContainerArea, Image);
+extend(ContainerArea, Pre);
 extend(ContainerArea, Input);
 extend(ContainerArea, Select);
 extend(ContainerArea, Indicator);
@@ -834,6 +953,19 @@ Tabular.prototype = {
 	},
 	removeClickListener: function (area) {
 		$( area ).unbind( "click" );
+	},
+	click : function (action, thisArg) {
+		return this.clickListeners.push([action, thisArg])-1;
+	},
+    unbindClick : function (listenerIndex) {
+        return delete this.clickListeners[listenerIndex];
+    },
+	clicked: function(event){
+		if (!this.disabled) {
+			for (var index in this.clickListeners) {
+				this.clickListeners[index][0].apply(this.clickListeners[index][1], [event]);
+			}
+		}
 	},
 	addHoverListener: function(area, actionIn, actionOut){
 		var callee = this;
@@ -902,17 +1034,7 @@ function TableField(parent, id, name, description) {
 	this.addClickListener(this.jElement, this.clicked);
 };
 
-TableField.prototype = {	
-    click : function (action, thisArg) {
-		this.clickListeners.push([action, thisArg])
-	},
-	clicked: function(event){
-		if (!this.disabled) {
-			for (var i = 0 ; i < this.clickListeners.length ; i++) {
-				this.clickListeners[i][0].apply(this.clickListeners[i][1], [event]);
-			}
-		}
-	},	
+TableField.prototype = {
 	setWidth : function(value) {
 		this.getJElement().width(value)
 		this.getJElement().css({'max-width':value})
@@ -932,6 +1054,11 @@ TableField.prototype = {
 		var widget = construct(arguments[0],defaultArgs.concat(arguments[1]));
 		this.widgetList.push(widget);
 		return widget;
+	},
+	addNewLine : function() {
+        var newLine = new LineBreak();
+		newLine.getJElement().appendTo(this.jElement);
+        return newLine;
 	}
 };
 
@@ -979,6 +1106,7 @@ UiHandler.prototype = {
 		var id = this.uiInstInt++;
 		var tmp = new UiConnector(id, widget, fValue, interval, form);
 		this.uiConnections[id] = tmp;
+        return tmp;
 	},	
 	addView : function(args) {
 		// Class, name, description, *additional args
@@ -1020,7 +1148,7 @@ UiHandler.prototype = {
 	activateView : function(view) {
 		for ( var el in this.viewList ) {
 			if (this.viewList[el].id !== view.id) {
-				this.viewList[el].setVisibility(false)
+				this.viewList[el].setVisibility(false);
 			}
 			
 		}
@@ -1037,7 +1165,10 @@ function UiConnector(id, widget, fValue, interval, form) {
 	this.setUpWidgetListners(this);
 	this.fValue = fValue;
 	this.setDisabled(true)
-	this.setInterval(this);
+    
+    this.active = false;
+    
+	this.setInterval();
 };
 
 UiConnector.prototype = {
@@ -1059,13 +1190,15 @@ UiConnector.prototype = {
 		};
 	},	
 	iFunction : function() {
-		if (this.interval > 0) {
+		if (this.interval > 0 && !this.active) {
 			var callee = this;
+            this.active = true;
 			return window.setInterval( function() {
 				callee.sync.apply(callee,[])
 			}, this.interval );
 		} else {
 			this.sync();
+            return this.iInst;
 		}
 	},
 	setUpWidgetListners : function() {
@@ -1077,6 +1210,7 @@ UiConnector.prototype = {
 	},
 	clearInterval : function() {
 		window.clearInterval(this.iInst);
+        this.active = false;
 	},
 	setInterval : function() {
 		this.iInst = this.iFunction();
@@ -1137,6 +1271,7 @@ function EIGERQuery(instance, handler, method, data) {
 	this.instance = instance;
 	this.data = data;
 	this.status = 0;
+    this.progressText = '';
 };
 
 EIGERQuery.prototype = {
@@ -1188,8 +1323,13 @@ function EIGERMQuery(handler, cmd, widget, newQItemCallback, updateQItemCallback
 	this.id = undefined;
 	this.handler = handler;
 	this.status = 0;
+    this.progressText = '';
 	
-	this.listOfQueues = cmd[0].apply(cmd[1][0],cmd[1]);
+    if ( typeof cmd[0] === 'function' ) {
+        this.listOfQueues = cmd[0].apply(cmd[1][0],cmd[1]);
+    } else {
+        this.listOfQueues = cmd;
+    }
 	
 	this.qDone = 0;
 	this.qCount = this.listOfQueues.length;
@@ -1276,7 +1416,8 @@ EIGERHandler.prototype = {
 		qInstance.setId(id);
 		this.notifyQListenerNew(qInstance);
 		this.activeQueries[id] = qInstance;
-		if (!noExec) {
+		qInstance.progressText = 'Quered';
+        if (!noExec) {
 			qInstance.exec();
 		}
 		return qInstance;
@@ -1346,6 +1487,7 @@ EIGERHandler.prototype = {
 	},
 	execQuery: function(qInstance) {
 		qInstance.setStatus(1);
+		qInstance.progressText = 'Sent';
 		this.notifyQListenerUpdate(qInstance);
 		var callee = this;
 		if (qInstance.instance.versionInURI === true) {
@@ -1365,25 +1507,11 @@ EIGERHandler.prototype = {
 				qInstance.instance.index);
 		};
 		qInstance.startTime = new Date().getTime();
-        switch (qInstance.instance.index) {
-            case 'trigger' :
-                var timeout = (qInstance.instance.superDet.detector.config.frame_time.value.value*qInstance.instance.superDet.detector.config.nimages.value.value+10)*2000;
-                console.log(sprintf('Setting timeout %s ms (%s)...', timeout, qInstance.instance.index));
-                break;
-            case 'arm':
-            case 'initialize':
-                var timeout = 330000;
-                console.log(sprintf('Setting timeout %s ms (%s)...', timeout, qInstance.instance.index));
-                break;
-            default:
-                var timeout = 60000;
-                break
-        }
 		qInstance.request = $.ajax({
 			url: url,
 			type: qInstance.method,
 			contentType: "application/json",
-            timeout: timeout,
+            timeout: 0,
 			data: qInstance.data
 			});
 		qInstance.request.done(function(data) { 
@@ -1394,22 +1522,105 @@ EIGERHandler.prototype = {
 		});
 
 	},
-	sucess : function(qInstance, data) {
-		qInstance.setStatus(2);
-		qInstance.endTime = new Date().getTime();
+    sucess : function (qInstance, data) {
 		qInstance.setResponse(data);
+        // Remove <&& qInstance.instance.domain === 'detector'> once API is consistent :)
+        if (qInstance.method === 'PUT' && qInstance.instance.subdomain.index === 'config' && qInstance.instance.domain.index === 'detector') {
+            this._putSuccess(qInstance, data);
+        } else {
+            this._success(qInstance, data);
+        }
+    },
+	_success : function(qInstance, data) {
+		qInstance.setStatus(2);
+		qInstance.progressText = 'Done';
+		qInstance.endTime = new Date().getTime();
 		this.notifyQListenerUpdate(qInstance);
 		this.history++;
 		delete this.activeQueries[qInstance.id];
 	},
+    _putSuccess : function (qInstance, data) {
+        var changedKeys = data;
+		var domain = qInstance.instance.domain;
+		var subdomain = qInstance.instance.subdomain;
+		
+        if (!isNaN(Number(changedKeys.length)) && changedKeys.length > 0) {
+            var qList = [];
+            for (var i = 0 ; i < changedKeys.length ; i++) {
+                if ( !inExcludedKeys(changedKeys[i]) ) {
+                    var qInst = this.add2Queue(new EIGERQuery(subdomain[changedKeys[i]], this, 'GET'));
+                    qList.push(qInst);
+                }
+            }
+            var mQ = new EIGERMQuery(this, qList, this, function () {}, this._updateMQ);
+            mQ.mainQ = qInstance;
+            this.add2Queue(mQ);
+        }
+    },
+    _updateMQ : function (qMInstance) {
+        qMInstance.mainQ.progressText = sprintf('UD %3.1f%%',qMInstance.getProgress()*100);
+		this.notifyQListenerUpdate(qMInstance.mainQ);
+        if (qMInstance.status === 2) {		
+            this.history++;
+            delete this.activeQueries[qMInstance.id];
+            this._success(qMInstance.mainQ, qMInstance.mainQ.response);
+        }
+    },
 	error : function(qInstance, data) {
-		qInstance.setResponse(data);
-		qInstance.setStatus(-1);
+        switch (qInstance.instance.index) {
+            case 'trigger' :
+                this.stateListener(qInstance, 'ready', ['acquire']);
+                break;
+            case 'arm':
+                this.stateListener(qInstance, 'ready', ['configure']);
+                break;
+            case 'initialize':
+                this.stateListener(qInstance, 'idle', ['initialize']);
+                break;
+            default:
+                this._error(qInstance, data);
+                break;
+        }
+	},
+    _error : function (qInstance, data) {
+        qInstance.setResponse(data);
+		qInstance.progressText = 'Error';
+        qInstance.setStatus(-1);
+        this.notifyQListenerUpdate(qInstance);
+        this.history[qInstance.id] = qInstance;
+        this.history++;
+        delete this.activeQueries[qInstance.id];  
+    },
+    stateListener : function (qInstance, successState, allowedStates) {
+        qInstance.progressText = 'StateMode';
+        console.log(sprintf('Request timedout, changing to state listener mode...', qInstance.instance.index));
 		this.notifyQListenerUpdate(qInstance);
-		this.history[qInstance.id] = qInstance;
-		this.history++;
-		delete this.activeQueries[qInstance.id];
-	}
+        var callee = this;
+        var listenerIndex = qInstance.instance.superDet.detector.status.state.refresh( function () {
+            callee.stateChange.apply(callee, [qInstance, successState, allowedStates])
+        }, this);
+        qInstance.listenerIndex = listenerIndex;
+    },
+    stateChange : function (qInstance, successState, allowedStates) {
+        var state = qInstance.instance.superDet.detector.status.state.value.value;
+        console.log(sprintf('Checking state: %s (value: %s, expected: %s)', state === successState,state, successState));
+        if (state === successState) {
+            qInstance.instance.superDet.detector.status.state.unbindRefresh(qInstance.listenerIndex);
+            this.sucess(qInstance);
+        } else {
+            var failState = true;
+            for (var index in  allowedStates) {
+                if (allowedStates[index] === state) {
+                    failState = false;
+                    break;
+                }
+            }
+            if (failState) {
+                qInstance.instance.superDet.detector.status.state.unbindRefresh(qInstance.listenerIndex);
+                this._error(qInstance);
+            }
+        }
+    }
 };
 
 function EIGERContainer() {
@@ -1428,11 +1639,14 @@ EIGERContainer.prototype = {
 		return containerList;
 	},	
 	refresh : function (action, thisArg) {
-		this.refreshListeners.push([action, thisArg]);
+		return this.refreshListeners.push([action, thisArg])-1;
 	},
+    unbindRefresh : function (listenerIndex) {
+		return delete this.refreshListeners[listenerIndex];
+    },
 	refreshed: function(event){
-		for (var i = 0 ; i < this.refreshListeners.length ; i++) {
-			this.refreshListeners[i][0].apply(this.refreshListeners[i][1], [event]);
+		for (var index in this.refreshListeners) {
+			this.refreshListeners[index][0].apply(this.refreshListeners[index][1], [event]);
 		}
 	},	
 	queueQuery : function(method, data, noExec) {
@@ -1470,17 +1684,11 @@ function EIGER(address, port, handler, version) {
 	this.address = address;
 	this.port = port;
 	this.index = 'detector';
-	//if (version === undefined){
-		this.version = defaultVersion;
-	//} else {
-	//	this.version = version;
-	//};
-	console.log(this);
+	this.version = defaultVersion;
 	
 	this.connectionStateID = 0;
 	
 	this.handler = handler;
-	console.log(handler);
 	this.children = this.addChilds(domains);
 	
 	this.handler.addQueueListener(this, this.updateQItem) 
@@ -1553,7 +1761,9 @@ function EIGERKey(superDet, domain, subdomain, index) {
 	this.children = {};
 	if ( this.subdomain.index === 'command' ) {
 		this.constructChild('access_mode', 'w');
-	} else {
+	} else if ( this.subdomain.index === 'status' ) { // Fix for an incompability with JAUN, seems like a bug to me
+		this.constructChild('access_mode', 'r');
+    } else {
 		this.constructChild('access_mode', '');
 	};
 };
@@ -1860,7 +2070,7 @@ EIGERAcqSet.prototype = {
 		this.cmd01 = new EIGERSubseqCmdPrompt( this.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.success, this, []],'error' : [function () {}, this, []]});
 		
 		this.cmd01.setTitle('Preparing standard user mode...');
-		this.cmd01.setHeight('140px');
+		this.cmd01.setCmdHeight('140px');
 		
 		this.cmd01.addQObj(this.eUi.e.detector.config.ntrigger.setValue(1));
 		this.cmd01.addQObj(this.eUi.e.detector.config.flatfield_correction_applied.setValue(true));
@@ -1926,9 +2136,13 @@ function EIGERExp (ui, eUi, action) {
 			var nTriggers = this.eUi.e.detector.config.ntrigger.value.value;
 			console.log(sprintf('Starting %s series with %s triggers...', triggerMode, nTriggers));
 			this.cmd01.addCmd(this.eUi.e.detector.command.arm, ['Put', '', true]);
-			if ( String(triggerMode).startsWith('int') ) {
+			if ( triggerMode.toLowerCase() === 'ints' ) {
 				for (var i=0 ; i < nTriggers ; i++) {
 					this.cmd01.addCmd(this.eUi.e.detector.command.trigger, ['Put', '', true], this.cmd01.EXEC_CLICK);
+				}
+			} else if ( triggerMode.toLowerCase() === 'inte' ) {
+				for (var i=0 ; i < nTriggers ; i++) {
+					this.cmd01.addCmd(this.eUi.e.detector.command.trigger, ['Put', '', true], this.cmd01.EXEC_VCLICK);
 				}
 			}
 			this.cmd01.addCmd(this.eUi.e.detector.command.disarm, ['Put', '', true], this.cmd01.EXEC_ICLICK, this.cmd01.ENDING_COMMAND);
@@ -1965,8 +2179,7 @@ EIGERExp.prototype = {
 		this.ui.activateView(view);
 	},
 	success : function(data) {
-		this.cmd01.getJElement().remove();
-		this.cmd01.btn01.getJElement().remove();
+		this.cmd01.remove();
 		dView = this.getView(this.endView);
 		this.switchView(dView);
 	},
@@ -1977,13 +2190,12 @@ EIGERExp.prototype = {
 		this.switchView(this.getView('Acquire'));
 	},
 	error : function(data) {	
-		this.cmd01.getJElement().remove();
-		this.cmd01.btn01.getJElement().remove();
+		this.cmd01.remove();
 		
 		this.cmd01 = new EIGERSubseqCmdPrompt( this.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.abortSuccess, this, []],'error' : [function () {}, this, []]});
 		
 		this.cmd01.setTitle('Recovering detector state...');
-		this.cmd01.setHeight('35px');
+		this.cmd01.setCmdHeight('35px');
 		
 		this.cmd01.addCmd(this.eUi.e.detector.command.abort, ['PUT','']);
 	}
@@ -2044,7 +2256,22 @@ function EIGERLog(parent, id, name, description, ui, eUi) {
 	this.ttl01 = this.addWidget(Title,[]);
 	this.ttl01.setLvl('h2');
 	this.ttl01.setText('EIGER Logs and Command Overview');
-	
+	    
+    this.addNewLine();
+        
+    this.chk01 = this.addWidget(CheckBox,[]);
+    this.chk01.setTitle('Enable Command Log');
+    this.chk01.jInput.change(function (event) {
+        if (callee.chk01.getValue()) {
+            callee.activateLog.apply(callee,[]);
+        } else {
+            callee.disableLog.apply(callee,[]);   
+        }
+    });
+    
+    this.lbl01 = this.addWidget(Label, []);
+    
+    
 	this.addNewLine();
 	
 	this.ttl02 = this.addWidget(Title,[]);
@@ -2059,7 +2286,7 @@ function EIGERLog(parent, id, name, description, ui, eUi) {
 	this.ttl02.lbl02 = this.addWidget(Label,[]);
 	this.ttl02.lbl02.setText('n/a');
 	this.ttl02.lbl02.setWidth('50px');
-	ui.uiConnect(this.ttl02.lbl02, function() { return Object.keys(callee.eUi.eHandler.activeQueries).length; }, 50);
+	this.uic01 = ui.uiConnect(this.ttl02.lbl02, function() { return Object.keys(callee.eUi.eHandler.activeQueries).length; }, 500);
 	
 	this.ttl02.lbl03 = this.addWidget(Label,[]);
 	this.ttl02.lbl03.setText('History:');
@@ -2067,19 +2294,43 @@ function EIGERLog(parent, id, name, description, ui, eUi) {
 	this.ttl02.lbl04 = this.addWidget(Label,[]);
 	this.ttl02.lbl04.setText('n/a');
 	this.ttl02.lbl04.setWidth('50px');
-	ui.uiConnect(this.ttl02.lbl04, function () { return callee.eUi.eHandler.history }, 50);
-	
-	this.addNewLine();
-	
-	this.ttl03 = this.addWidget(Title,[]);
+	this.uic02 = ui.uiConnect(this.ttl02.lbl04, function () { return callee.eUi.eHandler.history }, 500);
+    
+    this.addNewLine();
+    
+    this.ttl03 = this.addWidget(Title,[]);
 	this.ttl03.setLvl('h4');
 	this.ttl03.setText('Active Commands');
+    
+	this.addNewLine();
 	
 	this.lgh01 = this.addWidget(EIGERCmdLogger, [this.eUi]);
 }
 
 EIGERLog.prototype = {
-    
+    activateLog : function () {
+        this.chk01.setValue(true);
+        this.uic01.setInterval();
+        this.uic02.setInterval();
+        this.lgh01.activate();
+        
+        var callee = this;
+        this.iInst = window.setTimeout( function() {
+            callee.disableLog.apply(callee,[]);
+        }, 60000);
+        this.lbl01.getJElement().html('Please be aware that logging will automatically be disabled<br> after 60 seconds for performance consideratons.');
+    },
+    disableLog : function () {
+        this.chk01.setValue(false);
+        this.uic01.clearInterval();
+        this.ttl02.lbl02.setText('n/a');
+        this.uic02.clearInterval();
+        this.ttl02.lbl04.setText('n/a');
+        this.lgh01.disable();
+        
+        window.clearTimeout(this.iInst);
+        this.lbl01.getJElement().html('');
+    }
 };
 
 function EIGERHelp(parent, id, name, description, ui, eUi) {
@@ -2089,51 +2340,74 @@ function EIGERHelp(parent, id, name, description, ui, eUi) {
 	this.type = 'AcquireSettings';
 	
 	this.ttl01 = this.addWidget(Title,[]);
-	this.ttl01.setLvl('h4');
+	this.ttl01.setLvl('h2');
 	this.ttl01.setText('Support');
+    
+    this.addNewLine();
 	
-	this.getJElement().append($ ('<p>We want to be your partner and find solutions for your needs. <br> \
+    this.ext01 = this.addWidget(Extendable,[]);
+    this.ext01.setTitle('Support');
+    
+    this.ext01.toggle();
+    
+	this.ext01.containerArea.getJElement().append($ ('<p>We want to be your partner and find solutions for your needs. <br> \
 								We can support you with our broad technical expertise and application know-how.<br><br> \
 								Questions and inquiries - please contact us:<br><br> \
 								E-mail<br> \
 								<a href="mailto:support@dectris.com">support@dectris.com</a><br><br> \
+								Homepage<br> \
+								<a href="http://www.dectris.com" target="_blank">www.dectris.com</a><br><br> \
 								Telephone<br> \
 								+41 56 500 21 02</p> ') );
 	
 	this.addNewLine();
 	
-	this.ttl01 = this.addWidget(Title,[]);
-	this.ttl01.setLvl('h4');
-	this.ttl01.setText('Help');
+	this.ttl02 = this.addWidget(Title,[]);
+	this.ttl02.setLvl('h2');
+	this.ttl02.setText('Help');
 	
 	this.addNewLine();
+    
+    this.ext02 = this.addWidget(Extendable,[]);
+    this.ext02.setTitle('Connect');
 	
-	this.img01 = this.addWidget(Image,[]);
-	this.img01.setSrc('im/help/Connect.jpeg');
-	this.img01.setWidth('600px');	
+	this.ext02.img01 = this.ext02.addContent(Image,[]);
+	this.ext02.img01.setSrc('im/help/Connect.jpeg');
+	this.ext02.img01.setWidth('600px');	
 	
-	this.getJElement().append($ ('<p>1. Please enter the detectors address (name or IP).<br>The port is configured to be 80 when the input is left empty <br> \
+	this.ext02.containerArea.getJElement().append($ ('<p>1. Please enter the detectors address (name or IP).<br>The port is configured to be 80 when the input is left empty <br> \
 							2. Click on the connect button to set up the client.</p> ') );
-							
-	this.img01 = this.addWidget(Image,[]);
-	this.img01.setSrc('im/help/Settings.jpeg');
-	this.img01.setWidth('600px');	
 	
-	this.getJElement().append($ ('<p>1. Please adapt the settings to your needs. <br> \
+    this.addNewLine();
+    
+    this.ext03 = this.addWidget(Extendable,[]);
+    this.ext03.setTitle('Settings');
+    
+	this.ext03.img01 = this.ext03.addContent(Image,[]);
+	this.ext03.img01.setSrc('im/help/Settings.jpeg');
+	this.ext03.img01.setWidth('600px');	
+	
+	this.ext03.containerArea.getJElement().append($ ('<p>1. Please adapt the settings to your needs. <br> \
 							2. Click on the acquire button to record a (series) of image(s).</p> ') );
-							
-	this.img01 = this.addWidget(Image,[]);
-	this.img01.setSrc('im/help/Download.jpeg');
-	this.img01.setWidth('600px');	
+    
+	this.ext03.img01 = this.ext03.addContent(Image,[]);
+	this.ext03.img01.setSrc('im/help/ExpertMode.jpeg');
+	this.ext03.img01.setWidth('600px');	
 	
-	this.getJElement().append($ ('<p>1. By clicking the download button you will start downloading a file. <br>Always make sure to download the master and the data file.<br> \
+	this.ext03.containerArea.getJElement().append($ ('<p>Advanced users might chose to use the advanced mode. Please only use this mode if you are an expert.</p> ') );	
+	
+    this.addNewLine();
+    
+    this.ext04 = this.addWidget(Extendable,[]);
+    this.ext04.setTitle('Data Downloader');
+                            
+	this.ext04.img01 = this.ext04.addContent(Image,[]);
+	this.ext04.img01.setSrc('im/help/Download.jpeg');
+	this.ext04.img01.setWidth('600px');	
+	
+	this.ext04.containerArea.getJElement().append($ ('<p>1. By clicking the download button you will start downloading a file. <br>Always make sure to download the master and the data file.<br> \
 							2. Clicking the "x" button will delete the resource on the DCU. You will be asked to confirm.</p> ') );	
-							
-	this.img01 = this.addWidget(Image,[]);
-	this.img01.setSrc('im/help/ExpertMode.jpeg');
-	this.img01.setWidth('600px');	
-	
-	this.getJElement().append($ ('<p>Advanced users might chose to use the advanced mode. Please only use this mode if you are an expert.</p> ') );	
+    
 }
 
 EIGERHelp.prototype = {
@@ -2278,27 +2552,36 @@ function EIGERCmdLogger(parent, id, name, description, eUi) {
 	this.jElement.css('overflow-x','hidden');
 	
 	this.rows = {};
-	
-	for (var el in this.eUi.eHandler.activeQueries) {
-		this.newQItem(this.eUi.eHandler.activeQueries[el]);
-	}
-	
-	this.eUi.addQueryStatusListener(this.updateQItem, this.newQItem, this);
 }
 
 EIGERCmdLogger.prototype = {
+    activate : function () {
+        this.eUi.addQueryStatusListener(this.updateQItem, this.newQItem, this);
+        for (var el in this.eUi.eHandler.activeQueries) {
+            this.newQItem(this.eUi.eHandler.activeQueries[el]);
+        }
+    },
+    disable : function () {
+        this.eUi.removeQueryStatusListener(this);
+        for (var index in this.rows) {
+        	this.rows[index].getJElement().remove();
+            this.rows[index] = undefined;
+            delete this.rows[index];
+        }
+        this.rows = [];
+    },
 	updateQItem : function (qInstance) {
 		var id = qInstance.getId();
 		var callee = this;
 		
 		if ( qInstance.status === 0 ) {
-			this.rows[id].tfd03.ind01.setText('queued');
+			this.rows[id].tfd03.ind01.setText(qInstance.progressText);
 			this.rows[id].tfd03.ind01.grey();
 		} else if  ( qInstance.status === 1 ) {
-			this.rows[id].tfd03.ind01.setText('sent');
+			this.rows[id].tfd03.ind01.setText(qInstance.progressText);
 			this.rows[id].tfd03.ind01.warning();
 		} else if  ( qInstance.status === 2 ) {
-			this.rows[id].tfd03.ind01.setText('sucess');
+			this.rows[id].tfd03.ind01.setText(qInstance.progressText);
 			this.rows[id].tfd03.ind01.ok();
 			this.rows[id].getJElement().delay(500).slideUp(100, function() {
 				callee.rows[id].getJElement().remove();
@@ -2307,7 +2590,7 @@ EIGERCmdLogger.prototype = {
 			});
 		} else if  ( qInstance.status < 0 ) {
 			if (this.rows[id] !== undefined) {
-				this.rows[id].tfd03.ind01.setText('error');
+				this.rows[id].tfd03.ind01.setText(qInstance.progressText);
 				this.rows[id].tfd03.ind01.error();
 				if (qInstance.response){
 					this.rows[id].tfd04.setText(qInstance.response.statusText);
@@ -2413,10 +2696,8 @@ function EIGERCustomCmdPrompt(parent, id, name, description, eUi) {
     });
     this.sel04.setDisabled(true);
     
-    this.inp01 = this.frm01.addWidget(Input,[])
-    this.inp01.setTitle('Value');
-    this.inp01.setWidth('150px');
-    this.inp01.setDisabled(true);
+    this.vaa01 = this.frm01.addWidget(ContainerArea,[]);
+    this.vaa01.setWidth('150px');
     
     this.frm01.addNewLine();
     
@@ -2437,7 +2718,8 @@ function EIGERCustomCmdPrompt(parent, id, name, description, eUi) {
 		EIGERSubseqCmdHandler, 
 		[this.eUi, {'success' : [this._done, this, []],'error' : [this._fail, this, []]}]
 		);
-    this.cmd01.setHeight('100px');
+    this.cmd01.setCmdHeight('100px');
+    this.cmd01.btn01.setDisabled(true);
     
     this.addNewLine();
     
@@ -2471,7 +2753,79 @@ EIGERCustomCmdPrompt.prototype = {
         widget.addOptions(argList);
         widget.setValue('');
     },
+    getDataType : function (key) {
+        try { 
+            var dataType = key.value_type.value;
+        } catch(err) {
+            if (key.subdomain.index === 'command') {
+                if (key.index === 'trigger') {
+                    var dataType = 'float';
+                } else {
+                    var dataType = 'command';
+                }
+            }
+        };
+        return dataType;
+    },
+    addValueField : function (key) {        
+        var dataType = this.getDataType(key);
+        try { var allowedValues = key.allowed_values.value; } catch(err) {};
+        
+        if (allowedValues !== undefined) {
+            this.val01 = this.vaa01.addWidget(Select,[]);
+            this.val01.setTitle('Value');
+            this.val01.addOptions(allowedValues);
+            this.val01.setValue(key.value.value);
+        } else {
+            switch (dataType) {
+                case 'bool':
+                    this.val01 = this.vaa01.addWidget(CheckBox,[]);
+                    this.val01.setTitle('Value');
+                    this.val01.setValue(key.value.value);
+                    break;
+                case 'uint':
+                case 'float':
+                case 'string':
+                    this.val01 = this.vaa01.addWidget(Input,[]);
+                    this.val01.setTitle('Value');
+                    this.val01.setValue(key.value.value);
+                    break;
+                default:
+                    break;
+            }
+        }
+    },
+    removeValueField : function () {
+        this.vaa01.getJElement().empty();
+    },
+    getValue : function (key) {
+        var dataType = this.getDataType(key);
+        switch (dataType) {
+            case 'command':
+                var value = undefined;
+                break;
+            case 'bool':
+                var value = this.val01.getValue();
+                break;
+            case 'uint':
+                var value = filterInt(this.val01.getValue());
+                if (isNaN(value)) {
+                    throw sprintf('Failed to cast \'%s\' to %s...', this.val01.getValue(), dataType);
+                }
+                break;
+            case 'float':
+                var value = parseFloat(this.val01.getValue());
+                if (isNaN(value)) {
+                    throw sprintf('Failed to cast \'%s\' to %s...', this.val01.getValue(), dataType);
+                }
+                break
+            default:
+                var value = this.val01.getValue();
+        }
+        return value;
+    },
     changeModule : function (event) {
+        this.removeValueField();
         this.enableAllModes();
         this.btn01.setDisabled(true);
         this.sel03.empty();
@@ -2481,6 +2835,7 @@ EIGERCustomCmdPrompt.prototype = {
         this.addOptions(this.sel03, this.eUi.e[this.sel02.getValue()].children);
     },
     changeTask : function (event) {
+        this.removeValueField();
         this.enableAllModes();
         this.btn01.setDisabled(true);
         this.sel04.setDisabled(true);
@@ -2495,22 +2850,26 @@ EIGERCustomCmdPrompt.prototype = {
         }
     },
     changeKey : function (event) {
-        this.enableMode(this.eUi.e[this.sel02.getValue()][this.sel03.getValue()][this.sel04.getValue()].access_mode.value);
-        if (this.sel01.getValue() === 'PUT') {
-            this.inp01.setDisabled(false);
+        this.removeValueField();
+        try {
+            var key = this.eUi.e[this.sel02.getValue()][this.sel03.getValue()][this.sel04.getValue()];
+            this.enableMode(key.access_mode.value);
+            switch(this.sel01.getValue()) {
+                case 'PUT':
+                    this.addValueField(key);
+                    break;
+                case 'GET':
+                default:
+                    this.removeValueField();
+                    break;
+            }
+            this.btn01.setDisabled(false);
+        } catch (err) {
+            console.log(err);
         }
-        this.btn01.setDisabled(false);
     },
     changeMethod : function (event) {
-        switch(this.sel01.getValue()) {
-            case 'PUT':
-                this.inp01.setDisabled(false);
-                break;
-            case 'GET':
-            default:
-                this.inp01.setDisabled(true);
-                break;
-        }
+        this.changeKey();
     },
     changeMode : function (event) {
         this.inp01.setDisabled(false);
@@ -2548,7 +2907,7 @@ EIGERCustomCmdPrompt.prototype = {
                 var enOption = callee.sel01.jInput.find('option:enabled').first();
                 enOption.each( function () {
                     callee.sel01.setValue($(this).val());
-                    callee.changeMethod.apply(callee,[])
+                    callee.changeMethod.apply(callee,[]);
                 });
             }
         });
@@ -2556,6 +2915,7 @@ EIGERCustomCmdPrompt.prototype = {
     startQ : function () {
         this.btn02.setVisibility(false);
         this.frm01.setVisibility(false);
+        this.cmd01.btn01.setDisabled(false);
         this.cmd01.exec();
     },
     submit : function (args) {
@@ -2567,7 +2927,12 @@ EIGERCustomCmdPrompt.prototype = {
                 this.addQObj(key.updateKey(true), execStyle);
                 break;
             case 'PUT':
-                this.addQObj(key.setValue(this.inp01.getValue(),true), execStyle);
+                try { 
+                    var value = this.getValue(key);
+                    this.addQObj(key.setValue(value,true), execStyle);
+                } catch (err) {
+                    alert(sprintf('Error in parsing value.\n\n%s', err));
+                }
                 break;
             default:
                 break;    
@@ -2583,14 +2948,11 @@ EIGERCustomCmdPrompt.prototype = {
 	addMCmd : function (args) {
 		this.cmd01.addMCmd.apply(this.cmd01, arguments);
 	},
-	exec : function (args) {
-		this.cmd01.exec.apply(this.cmd01, arguments);
-	},
 	setTitle : function (args) {
 		this.tlt01.setText.apply(this.tlt01,arguments);
 	},
-	setHeight : function (args) {
-		this.cmd01.setHeight.apply(this.cmd01,arguments);
+	setCmdHeight : function (args) {
+		this.cmd01.setCmdHeight.apply(this.cmd01,arguments);
 	}
 };
 
@@ -2602,9 +2964,17 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     
     this.qInstance = undefined;
     
-    this.jElement.css('cursor','default');
+    this.reqPayload = false;
+    this.resPayload = false;
     
-    this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'top', ['mid',-200], 0);
+    var callee = this;
+    
+    this.jElement.css('cursor','default');
+    this.jElement.css('max-height','600px');
+    this.jElement.css('overflow-y','scroll');
+    this.jElement.css('overflow-x','hidden');
+    
+    this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'top', ['mid',-300], 0);
     this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'left', ['mid',-400], 0);
 	this.eUi.ui.resizer.trigger();
 	
@@ -2643,6 +3013,7 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.tbr01.tfd04.setWidth('230px');
     
     this.tbr02 = this.table.addWidget(TableRow,[]);
+    this.tbr02.setHeight('22px');
     
     this.tbr02.tfd01 = this.tbr02.addWidget(TableField);
     this.tbr02.tfd01.setText('Address');
@@ -2657,6 +3028,7 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.tbr02.tfd04.setText('RESPONSE_CODE');
     
     this.tbr03 = this.table.addWidget(TableRow,[]);
+    this.tbr03.setHeight('22px');
     
     this.tbr03.tfd01 = this.tbr03.addWidget(TableField);
     this.tbr03.tfd01.setText('Port');
@@ -2671,6 +3043,7 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.tbr03.tfd04.setText('RESPONSE_Status');
     
     this.tbr04 = this.table.addWidget(TableRow,[]);
+    this.tbr04.setHeight('22px');
     
     this.tbr04.tfd01 = this.tbr04.addWidget(TableField);
     this.tbr04.tfd01.setText('Module');
@@ -2679,6 +3052,7 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.tbr04.tfd02.setText('Module');
     
     this.tbr05 = this.table.addWidget(TableRow,[]);
+    this.tbr05.setHeight('22px');
     
     this.tbr05.tfd01 = this.tbr05.addWidget(TableField);
     this.tbr05.tfd01.setText('API Version');
@@ -2687,6 +3061,7 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.tbr05.tfd02.setText('DCU_APIVER');
     
     this.tbr06 = this.table.addWidget(TableRow,[]);
+    this.tbr06.setHeight('22px');
     
     this.tbr06.tfd01 = this.tbr06.addWidget(TableField);
     this.tbr06.tfd01.setText('Task');
@@ -2695,6 +3070,7 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.tbr06.tfd02.setText('Task');
     
     this.tbr07 = this.table.addWidget(TableRow,[]);
+    this.tbr07.setHeight('22px');
     
     this.tbr07.tfd01 = this.tbr07.addWidget(TableField);
     this.tbr07.tfd01.setText('Key');
@@ -2703,31 +3079,69 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.tbr07.tfd02.setText('Key');
     
     this.tbr08 = this.table.addWidget(TableRow,[]);
-    
     this.tbr08.tfd01 = this.tbr08.addWidget(TableField);
     this.tbr08.tfd01.setText('Payload');
     
     this.tbr08.tfd02 = this.tbr08.addWidget(TableField);
-    this.tbr08.tfd02.setText('REQ_Value');
+    this.tbr08.tfd02.lbl01 = this.tbr08.tfd02.addWidget(Label, []);
+    this.tbr08.tfd02.lbl01.setWidth('210px');
+    this.tbr08.tfd02.lbl01.getJElement().css('overflow-x','hidden');
+    this.tbr08.tfd02.lbl01.getJElement().css('overflow-y','hidden');
+    this.tbr08.tfd02.lbl01.getJElement().css('vertical-align','top');
+    this.tbr08.tfd02.lbl01.setText('RESPONSE_Payload');
+    this.tbr08.tfd02.img01 = this.tbr08.tfd02.addWidget(Image, []);
+    this.tbr08.tfd02.img01.getJElement().css('vertical-align','top');
+	this.tbr08.tfd02.img01.setSrc('im/expand.png');
+	this.tbr08.tfd02.img01.setWidth('12px');
+    this.tbr08.tfd02.click(function () {
+        callee.toggleReqPayload.apply(callee,[]);
+    });	
+    
     
     this.tbr08.tfd03 = this.tbr08.addWidget(TableField);
     this.tbr08.tfd03.setText('Payload');
     
     this.tbr08.tfd04 = this.tbr08.addWidget(TableField);
-    this.tbr08.tfd04.setText('RESPONSE_Payload');
+    this.tbr08.tfd04.lbl01 = this.tbr08.tfd04.addWidget(Label, []);
+    this.tbr08.tfd04.lbl01.setWidth('210px');
+    this.tbr08.tfd04.lbl01.getJElement().css('overflow-x','hidden');
+    this.tbr08.tfd04.lbl01.getJElement().css('overflow-y','hidden');
+    this.tbr08.tfd04.lbl01.getJElement().css('vertical-align','top');
+    this.tbr08.tfd04.lbl01.setText('RESPONSE_Payload');
+    this.tbr08.tfd04.img01 = this.tbr08.tfd04.addWidget(Image, []);
+    this.tbr08.tfd04.img01.getJElement().css('vertical-align','top');
+	this.tbr08.tfd04.img01.setSrc('im/expand.png');
+	this.tbr08.tfd04.img01.setWidth('12px');
+    this.tbr08.tfd04.click(function () {
+        callee.toggleResPayload.apply(callee,[]);
+    });
     
-    this.tbr09 = this.table.addWidget(TableRow,[]);
+    this.pre01 = this.addWidget(Pre,[]);
+    this.pre01.getJElement().css('overflow-y','scroll');
+    this.pre01.setWidth('700px');
+    this.pre01.getJElement().css('max-height','200px');
+    this.pre01.setVisibility(false);
+    this.pre01.addClickListener(this.pre01.getJElement(),function () {});
+    
+    this.tbl02 = this.addWidget(Table,[]);
+    this.tbl02.setWidth('700px');
+    
+    this.tbr09 = this.tbl02.addWidget(TableRow,[]);
     
     this.tbr09.tfd01 = this.tbr09.addWidget(TableField);
+    this.tbr09.tfd01.setWidth('120px');
     this.tbr09.tlt02 = this.tbr09.tfd01.addWidget(Title,[]);
 	this.tbr09.tlt02.setLvl('h3');
     this.tbr09.tlt02.setText('Meta');
     
     this.tbr09.tfd02 = this.tbr09.addWidget(TableField);
+    this.tbr09.tfd02.setWidth('230px');
     this.tbr09.tfd03 = this.tbr09.addWidget(TableField);
+    this.tbr09.tfd03.setWidth('120px');
     this.tbr09.tfd04 = this.tbr09.addWidget(TableField);
+    this.tbr09.tfd04.setWidth('230px');
     
-    this.tbr10 = this.table.addWidget(TableRow,[]);
+    this.tbr10 = this.tbl02.addWidget(TableRow,[]);
     
     this.tbr10.tfd01 = this.tbr10.addWidget(TableField);
     this.tbr10.tfd01.setText('Start Time');
@@ -2741,7 +3155,7 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.tbr10.tfd04 = this.tbr10.addWidget(TableField);
     this.tbr10.tfd04.setText('RESPONSE_Time');
     
-    this.tbr11 = this.table.addWidget(TableRow,[]);
+    this.tbr11 = this.tbl02.addWidget(TableRow,[]);
     
     this.tbr11.tfd01 = this.tbr11.addWidget(TableField);
     this.tbr11.tfd01.setText('Duration');
@@ -2752,10 +3166,10 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.addNewLine();
 
     this.btn01 = this.addWidget(Button, ['Update']);
-    this.btn01.click(this.update, this)
+    this.btn01.click(this.update, this);
     
     this.btn02 = this.addWidget(Button, ['Close']);
-    this.btn02.click(this.remove, this)
+    this.btn02.click(this.remove, this);
     
     this.setClickClose(true);
 }
@@ -2764,6 +3178,52 @@ EIGERCmdInformation.prototype = {
     close : function (event) {
         this.remove();
         //ToDo
+    },
+    toggleReqPayload : function () {
+        if (this.reqPayload) {
+            this.tbr08.tfd02.img01.setSrc('im/expand.png');
+            this.tbr08.tfd02.getJElement().css('border-bottom','0px');
+            this.pre01.getJElement().slideUp(300);
+        } else {
+            if (this.resPayload) {
+                this.tbr08.tfd04.img01.setSrc('im/expand.png');
+                this.tbr08.tfd04.getJElement().css('border-bottom','0px');
+                this.resPayload = !this.resPayload;
+            }
+            this.tbr08.tfd02.img01.setSrc('im/collapse.png');
+            this.tbr08.tfd02.getJElement().css('border-bottom','1px solid white');
+            var text = this.tbr08.tfd02.lbl01.getText();
+            if (text === '') {
+                this.pre01.html('not available');
+            } else {
+                this.pre01.html(prettyJSON(text));
+            }
+            this.pre01.getJElement().slideDown(300);
+        }
+        this.reqPayload = !this.reqPayload;
+    },
+    toggleResPayload : function () {
+        if (this.resPayload) {
+            this.tbr08.tfd04.img01.setSrc('im/expand.png');
+            this.tbr08.tfd04.getJElement().css('border-bottom','0px');
+            this.pre01.getJElement().slideUp(300);
+        } else {
+            if (this.reqPayload) {
+                this.tbr08.tfd02.img01.setSrc('im/expand.png');
+                this.tbr08.tfd02.getJElement().css('border-bottom','0px');
+                this.reqPayload = !this.reqPayload;
+            }
+            this.tbr08.tfd04.img01.setSrc('im/collapse.png');
+            this.tbr08.tfd04.getJElement().css('border-bottom','1px solid white');
+            var text = this.tbr08.tfd04.lbl01.getText();
+            if (text === '' || text === 'n/a') {
+                this.pre01.html('not available');
+            } else {
+                this.pre01.html(prettyJSON(text));
+            }
+            this.pre01.getJElement().slideDown(300);
+        }
+        this.resPayload = !this.resPayload;
     },
     setQ : function (qInstance) {
         this.qInstance = qInstance;
@@ -2783,7 +3243,7 @@ EIGERCmdInformation.prototype = {
 				this.qInstance.instance.subdomain.index, 
 				this.qInstance.instance.index);
         }
-        this.lbl01.setText(url);
+        this.lbl01.setText(qInstance.method, url);
         this.update();
     },
     update : function () {
@@ -2797,7 +3257,7 @@ EIGERCmdInformation.prototype = {
         }
         this.tbr06.tfd02.setText(this.qInstance.instance.subdomain.index);
         this.tbr07.tfd02.setText(this.qInstance.instance.index);
-        this.tbr08.tfd02.setText(this.qInstance.data);
+        this.tbr08.tfd02.lbl01.setText(this.qInstance.data);
         this.tbr08.tfd02.setTitle(this.qInstance.data);
         
         
@@ -2805,7 +3265,7 @@ EIGERCmdInformation.prototype = {
             case 0:
                 this.tbr02.tfd04.setText('n/a');
                 this.tbr03.tfd04.setText('Queued');
-                this.tbr08.tfd04.setText('n/a');
+                this.tbr08.tfd04.lbl01.setText('n/a');
                 
                 this.tbr10.tfd02.setText('n/a');
                 this.tbr10.tfd04.setText('n/a');
@@ -2814,7 +3274,7 @@ EIGERCmdInformation.prototype = {
             case 1: 
                 this.tbr02.tfd04.setText('n/a');
                 this.tbr03.tfd04.setText('Sent');
-                this.tbr08.tfd04.setText('n/a');
+                this.tbr08.tfd04.lbl01.setText('n/a');
                 
                 this.tbr10.tfd02.setText(msToISO(this.qInstance.startTime));
                 this.tbr10.tfd04.setText('n/a');
@@ -2825,7 +3285,7 @@ EIGERCmdInformation.prototype = {
                 
                 this.tbr02.tfd04.setText(this.qInstance.request.status);
                 this.tbr03.tfd04.setText(this.qInstance.request.statusText);
-                this.tbr08.tfd04.setText(this.qInstance.request.responseText);
+                this.tbr08.tfd04.lbl01.setText(this.qInstance.request.responseText);
                 this.tbr08.tfd04.setTitle(this.qInstance.request.responseText);
                 
                 this.tbr10.tfd02.setText(msToISO(this.qInstance.startTime));
@@ -2838,12 +3298,12 @@ EIGERCmdInformation.prototype = {
                     this.tbr02.tfd04.setText(this.qInstance.request.status);
                     this.tbr03.tfd04.setText(this.qInstance.request.statusText);
                     this.tbr03.tfd04.setTitle(this.qInstance.request.statusText);
-                    this.tbr08.tfd04.setText(this.qInstance.request.responseText);
+                    this.tbr08.tfd04.lbl01.setText(this.qInstance.request.responseText);
                     this.tbr08.tfd04.setTitle(this.qInstance.request.responseText);
                 } catch (err) {
                     this.tbr02.tfd04.setText('n/a');
                     this.tbr03.tfd04.setText('error');
-                    this.tbr08.tfd04.setText('n/a');
+                    this.tbr08.tfd04.lbl01.setText('n/a');
                 }
                 try {
                     this.tbr10.tfd02.setText(msToISO(this.qInstance.startTime));
@@ -2862,9 +3322,6 @@ EIGERCmdInformation.prototype = {
     },
 	setTitle : function (args) {
 		this.tlt01.setText.apply(this.tlt01,arguments);
-	},
-	setHeight : function (args) {
-		this.cmd01.setHeight.apply(this.cmd01,arguments);
 	}
 };
 
@@ -2911,8 +3368,8 @@ EIGERSubseqCmdPrompt.prototype = {
 	setTitle : function (args) {
 		this.tlt01.setText.apply(this.tlt01,arguments);
 	},
-	setHeight : function (args) {
-		this.cmd01.setHeight.apply(this.cmd01,arguments);
+	setCmdHeight : function (args) {
+		this.cmd01.setCmdHeight.apply(this.cmd01,arguments);
 	},
     _done : function (data) {
         this.callback['success'][0].apply(this.callback['success'][1],[data].concat(this.callback['success'][2]));
@@ -2940,16 +3397,19 @@ function EIGERSubseqCmdHandler (parent, id, name, description, eUi, callbackList
 	
 	this.status = 0;
 	this.statusText = '';
-	
-	this.table = this.addWidget(Table,[]);
+    
+    this.tblContainer = this.addWidget(BlockArea, parent, id, name, description)
+	this.tblContainer.jElement.css('overflow-y','scroll');
+	this.tblContainer.jElement.css('overflow-x','hidden');
+    
+    this.setHeight('400px');
+    
+    this.table = this.tblContainer.addWidget(Table,[]);
 	this.table.setWidth('865px');
 	
-	this.btn01 = this.parent.addWidget(Button,['Cancel'])
+	this.btn01 = this.addWidget(Button,['Cancel'])
 	this.btn01.click(this.cancel, this);
-	
-	this.setHeight('400px');
-	this.jElement.css('overflow-y','scroll');
-	this.jElement.css('overflow-x','hidden');
+
 	
 	this.rows = {};
 	
@@ -2965,6 +3425,7 @@ EIGERSubseqCmdHandler.prototype = {
 	EXEC_EXT : 1,
 	EXEC_CLICK : 2,
 	EXEC_ICLICK : 3,
+	EXEC_VCLICK : 4,
 	ENDING_COMMAND : true,
 	NONENDING_COMMAND : false,
 	addCmd : function(fObj, fOpts, execStyle, endingCommand) {
@@ -3015,6 +3476,7 @@ EIGERSubseqCmdHandler.prototype = {
 						break;
 					case this.EXEC_CLICK:
 					case this.EXEC_ICLICK:
+					case this.EXEC_VCLICK:
 						var id = this.listOfQueues[eIter]['qObject'].getId();
 						this.rows[id].btn01.setDisabled(false);
 						break;
@@ -3025,6 +3487,7 @@ EIGERSubseqCmdHandler.prototype = {
 		};
 	},
 	end : function() {
+        this.btn01.setDisabled(true);
 		this.eUi.removeQueryStatusListener(this);
 		if ( this.status < 0 ) {
 			console.log('Aborting Queue due to previous error.');
@@ -3051,19 +3514,22 @@ EIGERSubseqCmdHandler.prototype = {
 		if (qListItem) {
 			var id = qInstance.getId();
 			if ( qInstance.status === 0 ) {
-				this.rows[id].tfd03.ind01.setText('queued');
+				this.rows[id].tfd03.ind01.setText(qInstance.progressText);
 				this.rows[id].tfd03.ind01.grey();
 			} else if  ( qInstance.status === 1 ) {
 				if (this.status > -1 ) {
 					this.status = 1;
 				}
-				this.rows[id].tfd03.ind01.setText('sent');
+				this.rows[id].tfd03.ind01.setText(qInstance.progressText);
 				this.rows[id].tfd03.ind01.warning();
 				if (qListItem['execStyle'] === this.EXEC_CLICK || qListItem['execStyle'] === this.EXEC_ICLICK) {
 					this.rows[id].btn01.remove();
-				}
+				} else if (qListItem['execStyle'] === this.EXEC_VCLICK) {
+					this.rows[id].btn01.remove();
+					this.rows[id].inp01.remove();
+                }
 			} else if  ( qInstance.status === 2 ) {
-				this.rows[id].tfd03.ind01.setText('sucess');
+				this.rows[id].tfd03.ind01.setText(qInstance.progressText);
 				this.rows[id].tfd03.ind01.ok();
 				if ( qListItem['endingCommand'] === this.ENDING_COMMAND ) {
 					this.end();
@@ -3075,7 +3541,7 @@ EIGERSubseqCmdHandler.prototype = {
 				this.statusText = qInstance.response.statusText;
 				this.status = qInstance.status;
 				
-				this.rows[id].tfd03.ind01.setText('error');
+				this.rows[id].tfd03.ind01.setText(qInstance.progressText);
 				this.rows[id].tfd03.ind01.error();
 				this.rows[id].tfd04.setText(this.statusText);
 				this.rows[id].tfd04.setTitle(this.statusText);
@@ -3103,7 +3569,25 @@ EIGERSubseqCmdHandler.prototype = {
 				if (qListItem['execStyle'] === this.EXEC_CLICK) {
 					this.rows[id].btn01.setDisabled(true);
 				}
-			}
+			} else if (qListItem['execStyle'] === this.EXEC_VCLICK) {
+                this.rows[id].inp01 = this.rows[id].tfd04.addWidget(Input, []);
+                this.rows[id].inp01.label.remove();
+                this.rows[id].inp01.nwl01.setVisibility(false);
+                this.rows[id].tfd04.addNewLine();
+                this.rows[id].btn01 = this.rows[id].tfd04.addWidget(Button, ['exec']);
+				this.rows[id].btn01.setDisabled(true);
+                this.rows[id].inp01.setWidth('50px');
+                this.rows[id].btn01.click(function (event) {
+                    var value = parseFloat(callee.rows[id].inp01.getValue());
+                    if (!isNaN(value)) {
+                        qInstance.data = JSON.stringify({'value':value});
+                        qInstance.exec();
+                    } else {
+                        alert('Failed casting to float...')
+                    }
+                }, qInstance);
+                
+            }
 			this.updateQItem(qInstance);
 		}
 	},
@@ -3114,23 +3598,19 @@ EIGERSubseqCmdHandler.prototype = {
 	updateMQItem : function (mQInstance) {
 		var id = mQInstance.getId();
 		if ( mQInstance.status === 0 ) {
-			this.rows[id].tfd03.ind01.setText('queued');
-			this.rows[id].tfd03.ind01.grey();
+			this.rows[id].tfd03.setText('queued');
 		} else if  ( mQInstance.status === 1 ) {
 			if (this.status > -1 ) {
 				this.status = 1;
 			}
-			this.rows[id].tfd03.ind01.setText(sprintf('%s/%s',mQInstance.getQDone(), mQInstance.getQCount()));
-			this.rows[id].tfd02.prb01.setProgress(mQInstance.getProgress());
-			this.rows[id].tfd03.ind01.warning();
+			this.rows[id].tfd03.setText(sprintf('%3.1f%%',(mQInstance.getProgress()*100)));
+            this.rows[id].tfd02.prb01.setProgress(mQInstance.getProgress());
 		} else if  ( mQInstance.status === 2 ) {
-			this.rows[id].tfd03.ind01.setText('sucess');
-			this.rows[id].tfd03.ind01.ok();
+			this.rows[id].tfd03.setText('sucess');
 			this.exec();
 		} else if  ( mQInstance.status < 0  && this.status >= 0) {
 			this.rows[id].tfd02.prb01.setProgress(mQInstance.getProgress());
-			this.rows[id].tfd03.ind01.setText('error');
-			this.rows[id].tfd03.ind01.error();
+			this.rows[id].tfd03.setText('error');
 			this.rows[id].tfd04.setText('An error occured.');
 			this.rows[id].tfd04.setTitle('An error occured.');
 			this.status = mQInstance.status;
@@ -3153,6 +3633,21 @@ EIGERSubseqCmdHandler.prototype = {
 			}
 		}
 		return false;
+	},
+    remove : function () {
+        this.getJElement().remove();
+    },
+    setCmdHeight : function (value) {
+		var valueLength = value.length-2;
+		var valueInt = value.substr(0,valueLength);
+		this.getJElement().height(sprintf('%spx',parseInt(valueInt)+30));
+		this.tblContainer.setHeight(value);
+	},
+    setHeight : function (value) {
+		this.getJElement().height(value);
+		var valueLength = value.length-2;
+		var valueInt = value.substr(0,valueLength);
+		this.tblContainer.setHeight(sprintf('%spx',parseInt(valueInt)-30));
 	}
 };
 
@@ -3185,10 +3680,20 @@ EIGERTableRow.prototype = {
 };
 
 function EIGERTableMCRow(parent, id, name, description) {
-	EIGERTableRow.call(this, parent, id, name, description);
-	this.tfd02.setText('');
+	TableRow.call(this, parent, id, name, description);
+	this.tfd01 = this.addWidget(TableField, []);
+	this.tfd01.setText('ID');
+	this.tfd01.setWidth('40px');
+	this.tfd02 = this.addWidget(TableField, []);
+	this.tfd02.setWidth('640px');
 	this.tfd02.prb01 = this.tfd02.addWidget(Progressbar,[]);
-	this.tfd02.prb01.setProgress(0);
+	this.tfd02.prb01.setProgress(0);	
+	this.tfd03 = this.addWidget(TableField, []);
+	this.tfd03.setText('Status');
+	this.tfd03.setWidth('100px');
+	this.tfd04 = this.addWidget(TableField, []);
+	this.tfd04.setText('Error');
+	this.tfd04.setWidth('70px');
 }
 
 EIGERTableMCRow.prototype = {
@@ -3208,7 +3713,7 @@ EIGERTableMCRow.prototype = {
 };
 
 extend(TableRow, EIGERTableRow);
-extend(EIGERTableRow, EIGERTableMCRow);
+extend(TableRow, EIGERTableMCRow);
 extend(EIGERTableRow, EIGERDataTableRow);
 
 var fu = 0;
@@ -3245,7 +3750,7 @@ EIGERUiHandler.prototype = {
 		this.cmd01 = new EIGERSubseqCmdPrompt( this.ui.body, 0, 'EHC', 'EIGER Command Handler', this, callback);
 		
 		this.cmd01.setTitle(sprintf('Trying to connect to %s:%s', address, port));
-		this.cmd01.setHeight('180px');
+		this.cmd01.setCmdHeight('180px');
 		
 		this.cmd01.addCmd(this.e.detector.config.keys, ['GET','']);
 		this.cmd01.addCmd(this.e.detector.status.keys, ['GET','']);
@@ -3256,7 +3761,7 @@ EIGERUiHandler.prototype = {
 	},
 	_checkConSuccess : function (data, address, port, init) {
 		var qTime = data.listOfQueues[1]['qObject'].endTime - data.listOfQueues[0]['qObject'].startTime;
-		this.refInterval = (qTime+1000)*3;
+		this.refInterval = (qTime+1000)*5;
 		console.log(sprintf('Requests took %s ms to complete. Using %s ms as reference interval setting.', qTime, this.refInterval));
 		this.cmd01 = '';
 		this.e.unbind();
@@ -3286,7 +3791,7 @@ EIGERUiHandler.prototype = {
 		this.cmd01 = new EIGERSubseqCmdPrompt( this.ui.body, 0, 'EHC', 'EIGER Command Handler', this, callback);
 		
 		this.cmd01.setTitle(titleStr);
-		this.cmd01.setHeight(cmdHeight);
+		this.cmd01.setCmdHeight(cmdHeight);
 		
 		if (init === true) {
 			this.cmd01.addCmd(this.e.detector.command.initialize, ['Put',  '', true]);
@@ -3350,6 +3855,7 @@ EIGERUiHandler.prototype = {
 		var id = this.uiInstInt++;
 		var tmp = new EIGERUiConnector(this, id, widget, eigerValue, interval, form);
 		this.uiConnections[id] = tmp;
+        return tmp;
 	},
 	updateUiConnections : function() {
 		for ( var index in this.uiConnections ) {
@@ -3501,10 +4007,10 @@ EIGERUiConnector.prototype = {
 		if (changed) {
 			console.log(sprintf('Changed %s to: %s (from: %s)',this.eigerValue.index, this.widget.getValue(), this.eigerValue.value.value));
 				
-			this.cmd01 = new EIGERSubseqCmdPrompt( this.eUi.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.putSuccess, this, [submit]],'error' : [this.putError, this, []]});
+			this.cmd01 = new EIGERSubseqCmdPrompt( this.eUi.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.success, this, [submit]],'error' : [this.putError, this, []]});
 			
 			this.cmd01.setTitle(sprintf('Updating value %s...', this.eigerValue.index));
-			this.cmd01.setHeight('35px');
+			this.cmd01.setCmdHeight('35px');
 			
 			this.cmd01.addQObj(this.eigerValue.setValue(this.widget.getValue()));
 		} else {
@@ -3516,7 +4022,7 @@ EIGERUiConnector.prototype = {
 		}
 		this.setInterval();
 	},
-	getSuccess : function(data, submit) {
+	success : function(data, submit) {
 		this.cmd01 = '';
         if (submit) {
             this.reattachSubmit();
@@ -3534,40 +4040,17 @@ EIGERUiConnector.prototype = {
         this.cmd01 = new EIGERSubseqCmdPrompt( this.eUi.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.error, this, []],'error' : [this.error, this, []]});
 
         this.cmd01.setTitle(sprintf('Recovering value %s...', this.eigerValue.index));
-        this.cmd01.setHeight('35px');
+        this.cmd01.setCmdHeight('35px');
         
         this.cmd01.addCmd(data.listOfQueues[0]['qObject'].instance, ['GET', '']);
 	},
     error : function(data) {
 		this.cmd01 = '';
         this.reattachSubmit();
-    },
-	putSuccess : function(data, submit) {
-		this.cmd01 = '';
-		var changedKeys = data.listOfQueues[0]['qObject'].response;
-		var domain = data.listOfQueues[0]['qObject'].instance.domain.index;
-		var subdomain = data.listOfQueues[0]['qObject'].instance.subdomain.index;
-		
-        if (!isNaN(Number(changedKeys.length)) && changedKeys.length > 0) {
-            console.log(sprintf('Refreshing dependent keys %s:%s:%s...', domain, subdomain, changedKeys.join()));
-
-            this.cmd01 = new EIGERSubseqCmdPrompt( this.eUi.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.getSuccess, this, [submit]],'error' : [this.error, this, []]});
-
-            this.cmd01.setTitle(sprintf('Refreshing dependent keys (%s)...', this.eigerValue.index));
-
-            var cmdHeight = sprintf('%spx',30*changedKeys.length);
-            this.cmd01.setHeight(cmdHeight);
-
-            for (var i = 0 ; i < changedKeys.length ; i++) {
-                if ( !inExcludedKeys(changedKeys[i]) ) {
-                    this.cmd01.addCmd(this.eUi.e[domain][subdomain][changedKeys[i]], ['GET', '']);
-                }
-            }
-        }
-	}
+    }
 };
 
-var clientVersion = '1.3.0T1';
+var clientVersion = '1.3.0T2';
 var uniId = 0;
 
 $( document ).ready(function() {
@@ -3690,19 +4173,19 @@ $( document ).ready(function() {
 	var st01_ind01 = st01.addWidget(Indicator,[]);
 	st01_ind01.setText('Not Connected');
 	st01_ind01.setWidth('120px');
-	eUi.uiConnect(st01_ind01, eUi.e.detector.status.state, 1);
+	eUi.uiConnect(st01_ind01, eUi.e.detector.status.state, .2);
 
 	
 	// Navigation
 	var nv01 = new BlockArea(navigationArea, 1, 'xx', 'xx');
 	
 	// Adding pages to main
-	var pa01 = ui.addView(BlockArea, 'Settings', 'Detector Settings');
-	var pa02 = ui.addView(BlockArea, 'Acquire', 'Aquisition Settings');
-	var pa03 = ui.addView(BlockArea, 'Exposure', 'Exposure Information');
-	var pa04 = ui.addView(BlockArea, 'Data', 'Data Information');
-	var pa05 = ui.addView(BlockArea, 'Log', 'Logs and Information');
-	var pa06 = ui.addView(BlockArea, 'Help & Support', 'Information about DECTRIS Ltd. support and help.');
+	var pa01 = ui.addView(ViewArea, 'Settings', 'Detector Settings');
+	var pa02 = ui.addView(ViewArea, 'Acquire', 'Aquisition Settings');
+	var pa03 = ui.addView(ViewArea, 'Exposure', 'Exposure Information');
+	var pa04 = ui.addView(ViewArea, 'Data', 'Data Information');
+	var pa05 = ui.addView(ViewArea, 'Log', 'Logs and Information');
+	var pa06 = ui.addView(ViewArea, 'Help & Support', 'Information about DECTRIS Ltd. support and help.');
 	
 	// Adding buttons for pages (navigation)
 	var nv01_btn01 = ui.addNavButton(pa01, nv01);
@@ -3714,11 +4197,19 @@ $( document ).ready(function() {
 	
 	// page1, connection settings
 	var p01_con01 = pa01.addWidget(EIGERConSet,[ui, eUi]);
-	var p02_acq01 = pa02.addWidget(EIGERAcqSet,[ui, eUi]);
-	var p03_log01 = pa03.addWidget(EIGERAcq, [ui, eUi]);
-	var p04_log01 = pa04.addWidget(EIGERData, [ui, eUi]);
+	var p02_set01 = pa02.addWidget(EIGERAcqSet,[ui, eUi]);
+	var p03_acq01 = pa03.addWidget(EIGERAcq, [ui, eUi]);
+	var p04_dat01 = pa04.addWidget(EIGERData, [ui, eUi]);
 	var p05_log01 = pa05.addWidget(EIGERLog, [ui, eUi]);
-	var p06_log01 = pa06.addWidget(EIGERHelp, [ui, eUi]);
+	var p06_hlp01 = pa06.addWidget(EIGERHelp, [ui, eUi]);
+    
+    //
+    pa05.activate = function () {
+        p05_log01.activateLog();
+    }
+    pa05.leave = function () {
+        p05_log01.disableLog();
+    }
 
 	// Main Area Footer
 	
@@ -3727,3 +4218,4 @@ $( document ).ready(function() {
 	ma01_lbl01.getJElement().addClass('main-footer')
 	ma01_lbl01.setText(sprintf('EIGER Quick Start Client, %s, Copyright: DECTRIS Ltd., Author: Andy Moesch',clientVersion))
 });
+
