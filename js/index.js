@@ -1,4 +1,4 @@
-var clientVersion = '1.3.0T2';
+var clientVersion = '1.3.0T3';
 var uniId = 0;
 
 $( document ).ready(function() {
