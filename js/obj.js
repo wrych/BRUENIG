@@ -24,7 +24,7 @@ function toLocalISO(datetime) {
         + ':' + pad(tzo % 60);
 }
 
-filterInt = function (value) {
+function filterInt (value) {
   if(/^(\-|\+)?([0-9]+|Infinity)$/.test(value))
     return Number(value);
   return NaN;
@@ -32,7 +32,9 @@ filterInt = function (value) {
 
 function prettyJSON(json) {
     if (typeof json == 'string') {
-         json = JSON.stringify(JSON.parse(json), undefined, 2);
+        try { var jObj = JSON.parse(json); }
+        catch (err) {return json;}
+        json = JSON.stringify(jObj, undefined, 2);
     }
     json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     return json.replace(/("(\\u[a-zA&amp;'-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {

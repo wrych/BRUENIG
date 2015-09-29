@@ -63,9 +63,13 @@ function EIGERAcqSet(parent, id, name, description, ui, eUi) {
 	this.btn03.click(this.abort, this);
 	this.addAdvWidget(this.btn03);
     
- 	this.btn04 = this.addWidget(Button,['Custom Queue']);
-	this.btn04.click(this.customQ, this);
-	this.addAdvWidget(this.btn04);   
+ 	this.btn04 = this.addWidget(Button,['Check State']);
+	this.btn04.click(this.checkState, this);
+	this.addAdvWidget(this.btn04);  
+    
+ 	this.btn05 = this.addWidget(Button,['Custom Queue']);
+	this.btn05.click(this.customQ, this);
+	this.addAdvWidget(this.btn05);   
     
     this.addAdvWidget(this.addNewLine());
 		
@@ -77,43 +81,34 @@ function EIGERAcqSet(parent, id, name, description, ui, eUi) {
 	
 	this.inp01 = this.frm01.addWidget(Input,[]);
 	this.inp01.setTitle('Photon Energy [eV]');
-	eUi.uiConnect(this.inp01, eUi.e.detector.config.photon_energy, 1, this.frm01);
-	eUi.uiConnect(this.inp01, eUi.e.detector.config.photon_energy, 1, this.frm01);
 	this.addAdvWidget(this.inp01);
 	
 	this.inp02 = this.frm01.addWidget(Input,[]);
 	this.inp02.setTitle('Threshold Energy [eV]');
-	eUi.uiConnect(this.inp02, eUi.e.detector.config.threshold_energy, 1, this.frm01);
 	this.addAdvWidget(this.inp02);
 	
 	this.sel01 = this.frm01.addWidget(Select,[]);
 	this.sel01.setTitle('Elements');
-	eUi.uiConnect(this.sel01, eUi.e.detector.config.element, 1, this.frm01);
 	
 	this.frm01.addNewLine();
 	
 	this.inp03 = this.frm01.addWidget(Input,[]);
 	this.inp03.setTitle('Count Time');
-	eUi.uiConnect(this.inp03, eUi.e.detector.config.count_time, 1, this.frm01);
 	
-	this.inp03 = this.frm01.addWidget(Input,[]);
-	this.inp03.setTitle('Frame Time');
-	eUi.uiConnect(this.inp03, eUi.e.detector.config.frame_time, 1, this.frm01);
+	this.inp04 = this.frm01.addWidget(Input,[]);
+	this.inp04.setTitle('Frame Time');
 	
 	this.inp05 = this.frm01.addWidget(Input,[]);
 	this.inp05.setTitle('Number of Images');
-	eUi.uiConnect(this.inp05, eUi.e.detector.config.nimages, 1, this.frm01);
 
 	this.frm01.addNewLine();	
 	
 	this.chk01 = this.frm01.addWidget(CheckBox,[]);
 	this.chk01.setTitle('Apply Flatfield Correction');
-	eUi.uiConnect(this.chk01, eUi.e.detector.config.flatfield_correction_applied, 1, this.frm01);
 	this.addAdvWidget(this.chk01);
 	
 	this.chk02 = this.frm01.addWidget(CheckBox,[]);
 	this.chk02.setTitle('Apply Countrate Correction');
-	eUi.uiConnect(this.chk02, eUi.e.detector.config.countrate_correction_applied, 1, this.frm01);
 	this.addAdvWidget(this.chk02);
 
 	
@@ -121,29 +116,24 @@ function EIGERAcqSet(parent, id, name, description, ui, eUi) {
 
 	this.inp06 = this.frm01.addWidget(Input,[]);
 	this.inp06.setTitle('Number of Triggers');
-	eUi.uiConnect(this.inp06, eUi.e.detector.config.ntrigger, 1, this.frm01);
 	this.addAdvWidget(this.inp06);	
     
 	this.sel02 = this.frm01.addWidget(Select,[]);
 	this.sel02.setTitle('Trigger Mode');
-	eUi.uiConnect(this.sel02, eUi.e.detector.config.trigger_mode, 1, this.frm01);
 	this.addAdvWidget(this.sel02);	
 	
 	this.addAdvWidget(this.frm01.addNewLine());		
 	
 	this.inp07 = this.frm01.addWidget(Input,[]);
 	this.inp07.setTitle('Name Pattern');
-	eUi.uiConnect(this.inp07, eUi.e.filewriter.config.name_pattern, 1, this.frm01);
 	this.addAdvWidget(this.inp07);	
     
 	this.inp08 = this.frm01.addWidget(Input,[]);
 	this.inp08.setTitle('NImages per Data File');
-	eUi.uiConnect(this.inp08, eUi.e.filewriter.config.nimages_per_file, 1, this.frm01);
 	this.addAdvWidget(this.inp08);	
 	
 	this.sel03 = this.frm01.addWidget(Select,[]);
 	this.sel03.setTitle('FileWriter Mode');
-	eUi.uiConnect(this.sel03, eUi.e.filewriter.config.mode, 1, this.frm01);
 	this.addAdvWidget(this.sel03);	
 	
 	this.frm01.addNewLine();	
@@ -152,6 +142,10 @@ function EIGERAcqSet(parent, id, name, description, ui, eUi) {
 	this.chk04 = this.frm01.addWidget(CheckBox,[]);
 	this.chk04.setTitle('Expert Mode');
 	this.chk04.setDisabled(true);
+    
+ 	this.chk05 = this.frm01.addWidget(CheckBox,[]);
+	this.chk05.setTitle('Execute Commands Manually');
+	this.addAdvWidget(this.chk05);	
 	
 	this.setAdvModeElVisibility(false);
 	
@@ -160,22 +154,56 @@ function EIGERAcqSet(parent, id, name, description, ui, eUi) {
 			callee.toggleAdvanced.apply(callee,[]);
 		});
 	
-	this.btn05 = this.frm01.addWidget(SubmitButton,['Acquire']);
+	this.btn06 = this.frm01.addWidget(SubmitButton,['Acquire']);
+    this.btn06.setDisabled(true);
 	this.frm01.submit(this.acquire, this);
 }
 
 EIGERAcqSet.prototype = {
+    connect : function() {
+        this.eUi.uiConnect(this.inp01, this.eUi.e.detector.config.photon_energy, 1, this.frm01);
+        this.eUi.uiConnect(this.inp02, this.eUi.e.detector.config.threshold_energy, 1, this.frm01);
+        this.eUi.uiConnect(this.sel01, this.eUi.e.detector.config.element, 1, this.frm01);
+        this.eUi.uiConnect(this.inp03, this.eUi.e.detector.config.count_time, 1, this.frm01);
+        this.eUi.uiConnect(this.inp04, this.eUi.e.detector.config.frame_time, 1, this.frm01);
+        this.eUi.uiConnect(this.inp05, this.eUi.e.detector.config.nimages, 1, this.frm01);
+        this.eUi.uiConnect(this.chk01, this.eUi.e.detector.config.flatfield_correction_applied, 1, this.frm01);
+        this.eUi.uiConnect(this.chk02, this.eUi.e.detector.config.countrate_correction_applied, 1, this.frm01);
+        this.eUi.uiConnect(this.inp06, this.eUi.e.detector.config.ntrigger, 1, this.frm01);
+        this.eUi.uiConnect(this.sel02, this.eUi.e.detector.config.trigger_mode, 1, this.frm01);
+        this.eUi.uiConnect(this.inp07, this.eUi.e.filewriter.config.name_pattern, 1, this.frm01);
+        this.eUi.uiConnect(this.inp08, this.eUi.e.filewriter.config.nimages_per_file, 1, this.frm01);
+        this.eUi.uiConnect(this.sel03, this.eUi.e.filewriter.config.mode, 1, this.frm01);   
+        
+		this.eUi.setUpInterval();
+        
+        this.btn06.setDisabled(false);
+    },
 	acquire : function() {
         if (this.eUi.e.detector.status.state.value.value !== 'idle') {
             alert('Detector is not in idle state, will not start exposure.\n\nPlease disarm detector or abort exposure.')
         } else {
-            if (!this.advMode) {
-                new EIGERExp(this.ui, this.eUi, 'expose');
+            if (!this.advMode) {		
+                this.cmp01 = new EIGERSubseqCmdPrompt( this.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.expose, this, []],'error' : [function () {}, this, []]});
+                this.cmp01.setTitle('Preparing standard user mode...');
+        
+                this.cmd01 = this.cmp01.addCmdLog();
+                this.cmd01.setCmdHeight('180px');
+		
+                this.cmd01.addQObj(this.eUi.e.detector.config.ntrigger.setValue(1));
+                this.cmd01.addQObj(this.eUi.e.detector.config.flatfield_correction_applied.setValue(true));
+                this.cmd01.addQObj(this.eUi.e.detector.config.countrate_correction_applied.setValue(true));
+                this.cmd01.addQObj(this.eUi.e.detector.config.trigger_mode.setValue('ints'));
+                this.cmd01.addQObj(this.eUi.e.filewriter.config.mode.setValue('enabled'));
+                this.cmd01.addQObj(this.eUi.e.filewriter.config.name_pattern.setValue(sprintf('BRUENIG_%s_$id', new Date().toISOString().slice(0, 10))));
             } else {
-                new EIGERExp(this.ui, this.eUi, 'advExpose');
+                new EIGERExp(this.ui, this.eUi, 'advExpose', this.chk05.getValue());
             }
         }
 	},
+    expose : function () {
+        new EIGERExp(this.ui, this.eUi, 'expose');
+    },
 	toggleAdvanced : function () {
 		if (!this.advMode && this.eUi.e.connectionStateID === 2) {
 			this.enableAdvMode();
@@ -187,18 +215,6 @@ EIGERAcqSet.prototype = {
 		this.setAdvModeElVisibility(true);
 	},
 	disableAdvMode : function () {
-		
-		this.cmd01 = new EIGERSubseqCmdPrompt( this.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.success, this, []],'error' : [function () {}, this, []]});
-		
-		this.cmd01.setTitle('Preparing standard user mode...');
-		this.cmd01.setCmdHeight('140px');
-		
-		this.cmd01.addQObj(this.eUi.e.detector.config.ntrigger.setValue(1));
-		this.cmd01.addQObj(this.eUi.e.detector.config.flatfield_correction_applied.setValue(true));
-		this.cmd01.addQObj(this.eUi.e.detector.config.countrate_correction_applied.setValue(true));
-		this.cmd01.addQObj(this.eUi.e.detector.config.trigger_mode.setValue('ints'));
-		this.cmd01.addQObj(this.eUi.e.filewriter.config.mode.setValue('enabled'));
-		this.cmd01.addQObj(this.eUi.e.filewriter.config.name_pattern.setValue(sprintf('BRUENIG_%s_$id', new Date().toISOString().slice(0, 10))));
 		this.setAdvModeElVisibility(false);
 	},
     addAdvWidget : function (widget) {
@@ -212,13 +228,16 @@ EIGERAcqSet.prototype = {
 		this.chk04.setValue(value);
 	},
 	init : function() {
-		new EIGERExp(this.ui, this.eUi, 'initialize');
+		new EIGERConvenienceFunctions(this.ui, this.eUi, 'initialize');
 	},
     disarm : function() {
-        new EIGERExp(this.ui, this.eUi, 'disarm');
+        new EIGERConvenienceFunctions(this.ui, this.eUi, 'disarm');
     },
     abort : function() {
-        new EIGERExp(this.ui, this.eUi, 'abort');
+        new EIGERConvenienceFunctions(this.ui, this.eUi, 'abort');
+    },
+    checkState : function() {
+        new EIGERConvenienceFunctions(this.ui, this.eUi, 'checkstate', true);
     },
     customQ : function() {
         this.cmd01 = new EIGERCustomCmdPrompt( this.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.success, this, []],'error' : [function () {}, this, []]});
@@ -231,7 +250,58 @@ EIGERAcqSet.prototype = {
 	}
 };
 
-function EIGERExp (ui, eUi, action) {
+function EIGERConvenienceFunctions (ui, eUi, action) {
+	this.ui = ui;
+	this.eUi = eUi;  
+    
+    this.cmp01 = new EIGERSubseqCmdPrompt ( this.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.success, this, []],'error' : [this.error, this, []]} );
+    this.cmp01.setCloseDone(false);
+    this.cmd01 = this.cmp01.addCmdLog();
+    
+    
+    switch (action) {
+		case 'initialize' :
+			this.cmd01.addCmd(this.eUi.e.detector.command.initialize, ['Put', '', true]);
+            this.cmd01.setCmdHeight('35px');
+            this.cmd01.exec();
+			break;
+		case 'disarm' :
+			this.cmd01.addCmd(this.eUi.e.detector.command.disarm, ['Put', '', true]);
+            this.cmd01.setCmdHeight('35px');
+            this.cmd01.exec();
+			break;
+		case 'abort' :
+			this.cmd01.addCmd(this.eUi.e.detector.command.abort, ['Put', '', true]);
+            this.cmd01.setCmdHeight('35px');
+            this.cmd01.exec();
+            break;
+		case 'checkstate' :
+			this.cmd01.addCmd(this.eUi.e.detector.command.initialize, ['Put', '', true]); // Necessary work around JAUN
+			this.cmd01.addCmd(this.eUi.e.detector.status.state, ['GET', '', true]);
+			this.cmd01.addCmd(this.eUi.e.filewriter.status.state, ['GET', '', true]);
+            var cmdHeight = 3;
+            if (this.eUi.e.monitor) {this.cmd01.addCmd(this.eUi.e.monitor.status.state, ['GET', '', true]); cmdHeight++;}
+            if (this.eUi.e.stream) {this.cmd01.addCmd(this.eUi.e.stream.status.state, ['GET', '', true]); cmdHeight++;}
+            this.cmd01.setCmdHeight(sprintf('%spx', cmdHeight*30));
+            this.cmd01.exec();
+            break;
+    }
+}
+
+EIGERConvenienceFunctions.prototype = {
+    success : function(args) {
+        this._success.apply(this, arguments)
+    },    
+    error : function(args) {
+        this._error.apply(this, arguments)
+    },
+	_success : function(data) {
+	},
+	_error : function(data) {	
+	}    
+}
+
+function EIGERExp (ui, eUi, action, manualExec) {
 	this.ui = ui;
 	this.ui.exp = this;
 	this.eUi = eUi;
@@ -239,11 +309,11 @@ function EIGERExp (ui, eUi, action) {
 	var expView = this.getView('Exposure');
 	this.switchView(expView);
 	
-	this.cmd01 = expView.addWidget(
-			EIGERSubseqCmdHandler, 
-			[this.eUi,
-			{'success' : [this.success, this, []],'error' : [this.error, this, []]}]
-			);
+    this.cmd01 = expView.addWidget(
+            EIGERSubseqCmdHandler, 
+            [this.eUi,
+            {'success' : [this.success, this, []],'error' : [this.error, this, []]}]
+            );        
 	
 	switch (action) {
 		case 'expose' :			
@@ -253,33 +323,28 @@ function EIGERExp (ui, eUi, action) {
 			this.endView = 'Data';
 			break;
 		case 'advExpose' :
+            if (manualExec) {
+                execStyle1 = this.cmd01.EXEC_CLICK;
+                execStyle2 = this.cmd01.EXEC_ICLICK;
+            } else {
+                execStyle1 = this.cmd01.EXEC_IMMED;
+                execStyle2 = this.cmd01.EXEC_IMMED;
+            }
 			var triggerMode = this.eUi.e.detector.config.trigger_mode.value.value;
 			var nTriggers = this.eUi.e.detector.config.ntrigger.value.value;
 			console.log(sprintf('Starting %s series with %s triggers...', triggerMode, nTriggers));
 			this.cmd01.addCmd(this.eUi.e.detector.command.arm, ['Put', '', true]);
 			if ( triggerMode.toLowerCase() === 'ints' ) {
 				for (var i=0 ; i < nTriggers ; i++) {
-					this.cmd01.addCmd(this.eUi.e.detector.command.trigger, ['Put', '', true], this.cmd01.EXEC_CLICK);
+					this.cmd01.addCmd(this.eUi.e.detector.command.trigger, ['Put', '', true], execStyle1);
 				}
 			} else if ( triggerMode.toLowerCase() === 'inte' ) {
 				for (var i=0 ; i < nTriggers ; i++) {
 					this.cmd01.addCmd(this.eUi.e.detector.command.trigger, ['Put', '', true], this.cmd01.EXEC_VCLICK);
 				}
 			}
-			this.cmd01.addCmd(this.eUi.e.detector.command.disarm, ['Put', '', true], this.cmd01.EXEC_ICLICK, this.cmd01.ENDING_COMMAND);
+			this.cmd01.addCmd(this.eUi.e.detector.command.disarm, ['Put', '', true],execStyle2 , this.cmd01.ENDING_COMMAND);
 			this.endView = 'Data';
-			break;
-		case 'initialize' :
-			this.cmd01.addCmd(this.eUi.e.detector.command.initialize, ['Put', '', true]);
-			this.endView = 'Acquire';
-			break;
-		case 'disarm' :
-			this.cmd01.addCmd(this.eUi.e.detector.command.disarm, ['Put', '', true]);
-			this.endView = 'Acquire';
-			break;
-		case 'abort' :
-			this.cmd01.addCmd(this.eUi.e.detector.command.abort, ['Put', '', true]);
-			this.endView = 'Acquire';
 			break;
 	}
 	
@@ -306,16 +371,14 @@ EIGERExp.prototype = {
 	},
 	abortSuccess : function (data) {
 		alert(sprintf('%s\n\n%s','Failed to execute an exposure.',data.statusText));
-		this.cmd01 = '';
 	
 		this.switchView(this.getView('Acquire'));
 	},
-	error : function(data) {	
-		this.cmd01.remove();
-		
-		this.cmd01 = new EIGERSubseqCmdPrompt( this.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.abortSuccess, this, []],'error' : [function () {}, this, []]});
-		
-		this.cmd01.setTitle('Recovering detector state...');
+	error : function(data) {
+		this.cmp01 = new EIGERSubseqCmdPrompt( this.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.abortSuccess, this, []],'error' : [function () {}, this, []]});
+		this.cmp01.setTitle('Recovering detector state...');
+        
+        this.cmd01 = this.cmp01.addCmdLog();
 		this.cmd01.setCmdHeight('35px');
 		
 		this.cmd01.addCmd(this.eUi.e.detector.command.abort, ['PUT','']);
@@ -638,7 +701,9 @@ EIGERDataLogger.prototype = {
 	delData : function (id) {
 		if (confirm(sprintf('Do you really want to delete the file %s on the detector control unit.', this.rows[id].fileName)))
 		{
+            
 			var callee = this;
+            this.updateQItem(id, 'deleted');
 			$.ajax({
 				url: sprintf('http://%s:%s/data/%s',
 					this.eUi.e.address, 
@@ -648,10 +713,11 @@ EIGERDataLogger.prototype = {
 				type: 'delete',
 				contentType: "application/json",
 				success: function(data) { 
-					this.updateQItem.apply(callee, [id, 'deleting']);
+					callee.updateQItem.apply(callee, [id, 'deleted']);
 				},
 				error: function(data) { 
 					alert('Could not delete file.');
+					callee.updateQItem.apply(callee, [id, 'new']);
 				}
 			});
 		}
@@ -769,11 +835,12 @@ function EIGERCustomCmdPrompt(parent, id, name, description, eUi) {
     this.closeDone = false;
     
     this.jElement.css('cursor','default');
+    
 	this.tlt01 = this.addWidget(Title, []);
 	this.tlt01.setLvl('h3');
     
     this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'top', ['mid',-200], 0);
-    this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'left', ['mid',-400], 0);
+    this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'left', ['mid',-410], 0);
 	this.eUi.ui.resizer.trigger();
     
     this.tlt01.setText('Custom Command Queue Builder');
@@ -1095,9 +1162,16 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.jElement.css('overflow-y','scroll');
     this.jElement.css('overflow-x','hidden');
     
+    this.addClickListener(this.getJElement(), function () {});
+    
     this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'top', ['mid',-300], 0);
     this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'left', ['mid',-400], 0);
 	this.eUi.ui.resizer.trigger();
+    
+    this.img01 = this.addWidget(Image,[]);
+	this.img01.setSrc('im/wait.gif');
+	this.img01.setWidth('24px');
+    this.img01.getJElement().css('vertical-align','top');
 	
     this.tlt01 = this.addWidget(Title, []);
 	this.tlt01.setLvl('h3');
@@ -1286,16 +1360,40 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     
     this.addNewLine();
 
-    this.btn01 = this.addWidget(Button, ['Update']);
-    this.btn01.click(this.update, this);
+    this.chk01 = this.addWidget(CheckBox, []);
+    this.chk01.setTitle('Update automatically');
+    this.enableAutoUpdate();
+    this.chk01.getJElement().change( function () {
+        if (callee.chk01.getValue()) {
+            callee.enableAutoUpdate.apply(callee,[]);  
+        } else {
+            callee.disableAutoUpdate.apply(callee,[]);  
+        } 
+    });
     
-    this.btn02 = this.addWidget(Button, ['Close']);
-    this.btn02.click(this.remove, this);
+    this.btn01 = this.addWidget(Button, ['Close']);
+    this.btn01.click(this.remove, this);
     
     this.setClickClose(true);
 }
 
 EIGERCmdInformation.prototype = {
+    enableAutoUpdate : function () {
+        this.chk01.setValue(true);
+        this.eUi.addQueryStatusListener(this.updateQItem, this.newQItem, this);
+    },
+    disableAutoUpdate : function () {
+        this.chk01.setValue(false);
+        this.eUi.removeQueryStatusListener(this);
+    },
+    updateQItem : function (qInstance) {
+        if (this.qInstance === qInstance) {
+            this.update();
+        }
+    },
+    newQItem : function () {
+        
+    },
     close : function (event) {
         this.remove();
         //ToDo
@@ -1364,7 +1462,7 @@ EIGERCmdInformation.prototype = {
 				this.qInstance.instance.subdomain.index, 
 				this.qInstance.instance.index);
         }
-        this.lbl01.setText(qInstance.method, url);
+        this.lbl01.setText(sprintf('[%s] %s', qInstance.method.toUpperCase(), url));
         this.update();
     },
     update : function () {
@@ -1402,7 +1500,9 @@ EIGERCmdInformation.prototype = {
                 this.tbr11.tfd02.setText('n/a');
                 break;
             case 2:
-                this.btn01.setDisabled(true);
+                this.disableAutoUpdate();
+                this.img01.remove();
+                this.chk01.setDisabled(true);
                 
                 this.tbr02.tfd04.setText(this.qInstance.request.status);
                 this.tbr03.tfd04.setText(this.qInstance.request.statusText);
@@ -1414,7 +1514,10 @@ EIGERCmdInformation.prototype = {
                 this.tbr11.tfd02.setText(sprintf('%s ms', this.qInstance.endTime-this.qInstance.startTime));
                 break;
             default:
-                this.btn01.setDisabled(true);
+                this.disableAutoUpdate();
+                this.img01.remove();
+                this.chk01.setDisabled(true);
+                 
                 try {
                     this.tbr02.tfd04.setText(this.qInstance.request.status);
                     this.tbr03.tfd04.setText(this.qInstance.request.statusText);
@@ -1455,25 +1558,37 @@ function EIGERSubseqCmdPrompt(parent, id, name, description, eUi, callback) {
     this.closeDone = true;
     
     this.callback = callback;
+     
+    this.img01 = this.addWidget(Image,[]);
+	this.img01.setSrc('im/wait.gif');
+	this.img01.setWidth('24px');
+    this.img01.getJElement().css('vertical-align','top');
     
 	this.tlt01 = this.addWidget(Title, []);
 	this.tlt01.setLvl('h3');
     
     this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'top', ['mid',-200], 0);
-    this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'left', ['mid',-400], 0);
+    this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'left', ['mid',-410], 0);
 	this.eUi.ui.resizer.trigger();
     
-	this.addNewLine();
-	
-	var cmdHeight = '30px';
-	
-	this.cmd01 = this.addWidget(
-		EIGERSubseqCmdHandler, 
-		[this.eUi, {'success' : [this._done, this, []],'error' : [this._fail, this, []]}]
-		);
+	this.cmdLogList = [];
+	this.cmdLogCallback = [];
+    this.cmdLogId = 0;
 }
 
 EIGERSubseqCmdPrompt.prototype = {
+    addCmdLog : function (callback, endAfter) {
+        this.addNewLine();
+        var tmpLog = this.addWidget(
+                    EIGERSubseqCmdHandler, 
+                    [this.eUi, {'success' : [this._step, this, [this.cmdLogId, 'success']],'error' : [this._step, this, [this.cmdLogId, 'error']]}]
+                    );
+        this.cmdLogList[this.cmdLogId] = tmpLog;
+        this.cmdLogCallback[this.cmdLogId] = callback;
+        this.cmdLogId++;
+        this.endAfter = (endAfter === undefined) ? true : false;
+        return tmpLog;
+    },
 	addCmd : function (args) {
 		this.cmd01.addCmd.apply(this.cmd01, arguments);
 	},
@@ -1486,23 +1601,32 @@ EIGERSubseqCmdPrompt.prototype = {
 	exec : function (args) {
 		this.cmd01.exec.apply(this.cmd01, arguments);
 	},
+    setCloseDone : function (value) {
+        this.closeDone = value;
+    } ,
 	setTitle : function (args) {
 		this.tlt01.setText.apply(this.tlt01,arguments);
 	},
 	setCmdHeight : function (args) {
 		this.cmd01.setCmdHeight.apply(this.cmd01,arguments);
 	},
-    _done : function (data) {
-        this.callback['success'][0].apply(this.callback['success'][1],[data].concat(this.callback['success'][2]));
-        if (this.closeDone) {
-            this.remove();
+    _step : function(data, cmdLogId, state) {
+        if (this.cmdLogCallback[cmdLogId] !== undefined) {
+            this.cmdLogCallback[cmdLogId][state][0].apply(this.cmdLogCallback[cmdLogId][state][1],[data].concat(this.cmdLogCallback[cmdLogId][state][2]));
         }
-    },
-    _fail : function (data) {
-        this.callback['error'][0].apply(this.callback['error'][1],[data].concat(this.callback['error'][2]));
-        if (this.closeDone) {
-            this.remove();
+        if (cmdLogId === this.cmdLogId-1 && this.endAfter) {
+            this.callback[state][0].apply(this.callback[state][1],[data].concat(this.callback[state][2]));
+            if (this.closeDone) {
+                this.remove();
+            } else {
+                var callee = this;
+                var btn = this.addWidget(Button,['Close']);
+                btn.click(function () {
+                    callee.remove.apply(callee,[]);
+                });
+            }
         }
+        
     }
 };
 
@@ -1608,7 +1732,7 @@ EIGERSubseqCmdHandler.prototype = {
 		};
 	},
 	end : function() {
-        this.btn01.setDisabled(true);
+        this.btn01.remove();
 		this.eUi.removeQueryStatusListener(this);
 		if ( this.status < 0 ) {
 			console.log('Aborting Queue due to previous error.');
@@ -1652,6 +1776,11 @@ EIGERSubseqCmdHandler.prototype = {
 			} else if  ( qInstance.status === 2 ) {
 				this.rows[id].tfd03.ind01.setText(qInstance.progressText);
 				this.rows[id].tfd03.ind01.ok();
+                if (qInstance.method === 'GET') {
+                    try {
+                        this.rows[id].tfd04.setText(qInstance.response.value);
+                    } catch (err) {}
+                }
 				if ( qListItem['endingCommand'] === this.ENDING_COMMAND ) {
 					this.end();
 				} else {
@@ -1659,7 +1788,7 @@ EIGERSubseqCmdHandler.prototype = {
 					this.exec();
 				}
 			} else if  ( qInstance.status < 0 && this.status >= 0) {
-				this.statusText = qInstance.response.statusText;
+				this.statusText = qInstance.request.statusText;
 				this.status = qInstance.status;
 				
 				this.rows[id].tfd03.ind01.setText(qInstance.progressText);
@@ -1868,33 +1997,61 @@ EIGERUiHandler.prototype = {
 		
 		var callback = {'success' : [this._checkConSuccess, this, [address, port, init]],'error' : [this._checkConError, this, []]};
 
-		this.cmd01 = new EIGERSubseqCmdPrompt( this.ui.body, 0, 'EHC', 'EIGER Command Handler', this, callback);
+		this.cmp01 = new EIGERSubseqCmdPrompt( this.ui.body, 0, 'EHC', 'EIGER Command Handler', this, callback);
+		this.cmp01.setTitle(sprintf('Trying to connect to %s:%s', address, port));
+        
+        this.cmd01 = this.cmp01.addCmdLog({'success' : [this._getKeys, this, [address, port, init]],'error' : [this._checkConError, this, []]}, false);
+		this.cmd01.setCmdHeight('35px');
 		
-		this.cmd01.setTitle(sprintf('Trying to connect to %s:%s', address, port));
-		this.cmd01.setCmdHeight('180px');
-		
-		this.cmd01.addCmd(this.e.detector.config.keys, ['GET','']);
-		this.cmd01.addCmd(this.e.detector.status.keys, ['GET','']);
-		this.cmd01.addCmd(this.e.filewriter.config.keys, ['GET','']);
-		this.cmd01.addCmd(this.e.filewriter.status.keys, ['GET','']);
-		this.cmd01.addCmd(this.e.monitor.config.keys, ['GET','']);
-		this.cmd01.addCmd(this.e.monitor.status.keys, ['GET','']);		
+		this.cmd01.addCmd(this.e.detector.version, ['GET','']);
+    },    
+    _getKeys : function (data, address, port, init) {
+        var version = this.e.detector.version.value.value;
+        this.e.setVersion(version);
+		this.updateUiConnections();
+        
+        this.cmd02 = this.cmp01.addCmdLog();
+        
+        var cmdHeight = 4;
+		this.cmd02.addCmd(this.e.detector.config.keys, ['GET','']);
+		this.cmd02.addCmd(this.e.detector.status.keys, ['GET','']);
+        if (this.e.detector.command.keys) {this.cmd02.addCmd(this.e.detector.command.keys, ['GET','']); cmdHeight++;};
+		this.cmd02.addCmd(this.e.filewriter.config.keys, ['GET','']);
+		this.cmd02.addCmd(this.e.filewriter.status.keys, ['GET','']);
+        if (this.e.filewriter.command.keys) {this.cmd02.addCmd(this.e.filewriter.command.keys, ['GET','']); cmdHeight++;};
+        
+        if (this.e.monitor) {
+            this.cmd02.addCmd(this.e.monitor.config.keys, ['GET','']);
+            cmdHeight++;
+            this.cmd02.addCmd(this.e.monitor.status.keys, ['GET','']);
+            cmdHeight++;
+            if (this.e.monitor.command.keys) {this.cmd02.addCmd(this.e.monitor.command.keys, ['GET','']); cmdHeight++;};
+        }
+        if (this.e.stream) {
+            this.cmd02.addCmd(this.e.stream.config.keys, ['GET','']);
+            cmdHeight++;
+            this.cmd02.addCmd(this.e.stream.status.keys, ['GET','']);
+            cmdHeight++;
+            if (this.e.stream.command.keys) {this.cmd02.addCmd(this.e.stream.command.keys, ['GET','']); cmdHeight++;};
+        }
+        
+		this.cmd02.setCmdHeight(sprintf('%spx', cmdHeight*30));
 	},
 	_checkConSuccess : function (data, address, port, init) {
+        this.e.reconstruct();
+        
 		var qTime = data.listOfQueues[1]['qObject'].endTime - data.listOfQueues[0]['qObject'].startTime;
 		this.refInterval = (qTime+1000)*5;
 		console.log(sprintf('Requests took %s ms to complete. Using %s ms as reference interval setting.', qTime, this.refInterval));
-		this.cmd01 = '';
-		this.e.unbind();
-		this.e = new EIGER(address,port, this.eHandler);
-		this.updateUiConnections();
 		this._connect(address, port, init);
 	},
 	_checkConError : function(data) {
-		this.cmd01 = '';
+		this.cmp01.remove();
 		alert(sprintf('%s\n\n%s','Failed to connect to detector.',data.statusText));
 	},
 	_connect : function(address, port, init) {
+		this.e.reconstruct();
+		this.updateUiConnections();
 		var titleStr = sprintf('Connecting to %s:%s...', address, port);
 		console.log(titleStr);
 		if (init) {
@@ -1909,9 +2066,10 @@ EIGERUiHandler.prototype = {
 			cmdHeight = '40px';
 		}
 		
-		this.cmd01 = new EIGERSubseqCmdPrompt( this.ui.body, 0, 'EHC', 'EIGER Command Handler', this, callback);
-		
-		this.cmd01.setTitle(titleStr);
+		this.cmp01 = new EIGERSubseqCmdPrompt( this.ui.body, 0, 'EHC', 'EIGER Command Handler', this, callback);
+		this.cmp01.setTitle(titleStr);
+        
+        this.cmd01 = this.cmp01.addCmdLog();
 		this.cmd01.setCmdHeight(cmdHeight);
 		
 		if (init === true) {
@@ -1934,10 +2092,10 @@ EIGERUiHandler.prototype = {
 	},
 	connectSuccess : function(data) {
 		this.cmd01 = '';
-		this.setUpInterval();
 		this.e.connectionStateID = 2;
 		var acqView = this.getView('Acquire');
 		this.switchView(acqView);
+        this.ui.acq.connect();
 		this.ui.acq.disableAdvMode();
 		this.ui.acq.chk04.setDisabled(false);
 	},	
@@ -1968,8 +2126,9 @@ EIGERUiHandler.prototype = {
 		};
 	},
 	setUpInterval : function() {
-		for (var el in this.uiConnections) {
-			this.uiConnections[el].setInterval();
+		for (var index in this.uiConnections) {
+			this.uiConnections[index].setInterval();
+            this.uiConnections[index].eigerValue.refreshed();
 		};
 	},
 	uiConnect : function(widget, eigerValue, interval, form) {
@@ -2128,9 +2287,10 @@ EIGERUiConnector.prototype = {
 		if (changed) {
 			console.log(sprintf('Changed %s to: %s (from: %s)',this.eigerValue.index, this.widget.getValue(), this.eigerValue.value.value));
 				
-			this.cmd01 = new EIGERSubseqCmdPrompt( this.eUi.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.success, this, [submit]],'error' : [this.putError, this, []]});
-			
-			this.cmd01.setTitle(sprintf('Updating value %s...', this.eigerValue.index));
+			this.cmp01 = new EIGERSubseqCmdPrompt( this.eUi.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.success, this, [submit]],'error' : [this.putError, this, []]});
+			this.cmp01.setTitle(sprintf('Updating value %s...', this.eigerValue.index));
+            
+            this.cmd01 = this.cmp01.addCmdLog();
 			this.cmd01.setCmdHeight('35px');
 			
 			this.cmd01.addQObj(this.eigerValue.setValue(this.widget.getValue()));
@@ -2144,7 +2304,6 @@ EIGERUiConnector.prototype = {
 		this.setInterval();
 	},
 	success : function(data, submit) {
-		this.cmd01 = '';
         if (submit) {
             this.reattachSubmit();
             this.form.submitted();
@@ -2157,10 +2316,10 @@ EIGERUiConnector.prototype = {
     },
 	putError : function(data) {
         alert(sprintf('Error while executing request.\n\n%s'), data.statusText);
-		this.cmd01 = '';
-        this.cmd01 = new EIGERSubseqCmdPrompt( this.eUi.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.error, this, []],'error' : [this.error, this, []]});
-
-        this.cmd01.setTitle(sprintf('Recovering value %s...', this.eigerValue.index));
+        this.cmp01 = new EIGERSubseqCmdPrompt( this.eUi.ui.body, 0, 'EHC', 'EIGER Command Handler', this.eUi, {'success' : [this.error, this, []],'error' : [this.error, this, []]});
+        this.cmp01.setTitle(sprintf('Recovering value %s...', this.eigerValue.index));
+        
+        this.cmd01 = this.cmp01.addCmdLog();
         this.cmd01.setCmdHeight('35px');
         
         this.cmd01.addCmd(data.listOfQueues[0]['qObject'].instance, ['GET', '']);

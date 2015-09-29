@@ -1,32 +1,31 @@
 var defaultVersion = '1.0.0';
-//var domains = ['detector','monitor','filewriter','stream'];
-var domains = ['detector','monitor','filewriter'];
+var domains = ['detector','filewriter'];
 var subdomains = ['config', 'status', 'command'];
-var detkeys = {'config':["keys","auto_summation", "beam_center_x", "beam_center_y", "countrate_correction_applied", "countrate_correction_bunch_mode", "count_time", "data_collection_date", "detector_number", "efficiency_correction_applied", "element", "flatfield_correction_applied", "frame_time", "nimages", "number_of_excluded_pixels", "photon_energy", "pixel_mask_applied", "sensor_material", "sensor_thickness", "software_version", "threshold_energy", "trigger_mode", "virtual_pixel_correction_applied", "ntrigger"]
-				, 'status' : ["keys","state"]
+var detkeys = {'config':["auto_summation", "beam_center_x", "beam_center_y", "countrate_correction_applied", "countrate_correction_bunch_mode", "count_time", "data_collection_date", "detector_number", "efficiency_correction_applied", "element", "flatfield_correction_applied", "frame_time", "nimages", "number_of_excluded_pixels", "photon_energy", "pixel_mask_applied", "sensor_material", "sensor_thickness", "software_version", "threshold_energy", "trigger_mode", "virtual_pixel_correction_applied", "ntrigger"]
+				, 'status' : ["state"]
 				, 'command' : ['initialize','arm','disarm','trigger','cancel','abort']};
-var monkeys = {'config': ["keys"], 
-				'status': ["keys"], 
-				'command': []};
-var fwrkeys = {'config': ["keys","transfer_mode", "image_nr_start", "mode", "nimages_per_file", "name_pattern", "compression_enabled"], 
-				'status': ["keys","state", "error", "time", "buffer_free"], 
+var fwrkeys = {'config': ["transfer_mode", "image_nr_start", "mode", "nimages_per_file", "name_pattern", "compression_enabled"], 
+				'status': ["state", "error", "time", "buffer_free"], 
 				'command': ["clear"]};
-
-var stmkeys = {'config': ["keys"], 
-    'status': ["keys"], 
-    'command': []};
+var monkeys = {'config': [], 
+				'status': [], 
+				'command': []};
+var stmkeys = {'config': [], 
+				'status': [], 
+				'command': []};
 
 var specialKeys = [{'domain' : 'detector', 'subdomain' : 'version', 'versionInURI' : false},
-                    {'domain' : 'monitor', 'subdomain' : 'version', 'versionInURI' : false},
                     {'domain' : 'filewriter', 'subdomain' : 'version', 'versionInURI' : false},
-					{'domain' : 'filewriter', 'subdomain' : 'files', 'versionInURI' : true},
-					{'domain' : 'monitor', 'subdomain' : 'images', 'versionInURI' : true}];
+					{'domain' : 'filewriter', 'subdomain' : 'files', 'versionInURI' : true}];
 				
 var keys = {};
-keys[domains[0]] = detkeys; 
-keys[domains[1]] = monkeys; 
-keys[domains[2]] = fwrkeys;
-//keys[domains[3]] = stmkeys;
+keys['detector'] = detkeys; 
+keys['filewriter'] = fwrkeys;
+keys['monitor'] = monkeys;
+keys['stream'] = stmkeys;
+
+
+                    
 
 var excludedKeys = ['clear', 'pixel_mask', 'flatfield'];
 
@@ -348,19 +347,23 @@ EIGERHandler.prototype = {
         }
     },
 	error : function(qInstance, data) {
-        switch (qInstance.instance.index) {
-            case 'trigger' :
-                this.stateListener(qInstance, 'ready', ['acquire']);
-                break;
-            case 'arm':
-                this.stateListener(qInstance, 'ready', ['configure']);
-                break;
-            case 'initialize':
-                this.stateListener(qInstance, 'idle', ['initialize']);
-                break;
-            default:
-                this._error(qInstance, data);
-                break;
+        if (qInstance.request.status == 504 || qInstance.request.statusText === 'timeout') {
+            switch (qInstance.instance.index) {
+                case 'trigger' :
+                    this.stateListener(qInstance, ['idle','ready'], ['acquire']);
+                    break;
+                case 'arm':
+                    this.stateListener(qInstance, ['idle','ready'], ['configure']);
+                    break;
+                case 'initialize':
+                    this.stateListener(qInstance, ['idle'], ['initialize']);
+                    break;
+                default:
+                    this._error(qInstance, data);
+                    break;
+            }
+        } else {
+            this._error(qInstance, data);
         }
 	},
     _error : function (qInstance, data) {
@@ -372,20 +375,27 @@ EIGERHandler.prototype = {
         this.history++;
         delete this.activeQueries[qInstance.id];  
     },
-    stateListener : function (qInstance, successState, allowedStates) {
+    stateListener : function (qInstance, successStates, allowedStates) {
         qInstance.progressText = 'StateMode';
         console.log(sprintf('Request timedout, changing to state listener mode...', qInstance.instance.index));
 		this.notifyQListenerUpdate(qInstance);
         var callee = this;
         var listenerIndex = qInstance.instance.superDet.detector.status.state.refresh( function () {
-            callee.stateChange.apply(callee, [qInstance, successState, allowedStates])
+            callee.stateChange.apply(callee, [qInstance, successStates, allowedStates])
         }, this);
         qInstance.listenerIndex = listenerIndex;
     },
-    stateChange : function (qInstance, successState, allowedStates) {
+    stateChange : function (qInstance, successStates, allowedStates) {
         var state = qInstance.instance.superDet.detector.status.state.value.value;
-        console.log(sprintf('Checking state: %s (value: %s, expected: %s)', state === successState,state, successState));
-        if (state === successState) {
+        var success = false;
+        for (index in successStates) {
+            if ( state === successStates[index] ) {
+                success = true;
+                break;
+            }
+        }
+        console.log(sprintf('Checking state: %s (value: %s, expected: [%s])', success, state, successStates.join()));
+        if (success) {
             qInstance.instance.superDet.detector.status.state.unbindRefresh(qInstance.listenerIndex);
             this.sucess(qInstance);
         } else {
@@ -407,17 +417,16 @@ EIGERHandler.prototype = {
 function EIGERContainer() {
 	this.versionInURI = true;
 	this.refreshListeners = [];
+    this.children = [];
 };
 
 EIGERContainer.prototype = {
 	addChilds : function(list) {
-		var containerList = {};
-		for ( var i = 0 ; i < list.length ; i++ ) {
-			var child = this.constructChild(list[i]);
-			containerList[list[i]] = child;
-			this[list[i]] = child;
+		for ( var index in list ) {
+			var child = this.constructChild(list[index]);
+			this[list[index]] = child;
+            this.children[list[index]] = child;
 		}
-		return containerList;
 	},	
 	refresh : function (action, thisArg) {
 		return this.refreshListeners.push([action, thisArg])-1;
@@ -465,17 +474,36 @@ function EIGER(address, port, handler, version) {
 	this.address = address;
 	this.port = port;
 	this.index = 'detector';
-	this.version = defaultVersion;
-	
+    
 	this.connectionStateID = 0;
 	
 	this.handler = handler;
-	this.children = this.addChilds(domains);
+    
+    if (version === undefined) {
+        this.setVersion(defaultVersion);
+    } else {
+        this.setVersion(version);
+    }
+    
+    console.log(this);
 	
 	this.handler.addQueueListener(this, this.updateQItem) 
 };
 
 EIGER.prototype = {
+    reconstruct : function() {    
+        var addDomains = [];
+    
+        if ( this.isVersionOrHigher(1,0,0) ) {
+            addDomains.push('monitor');
+        }
+        if ( this.isVersionOrHigher(1,5,0) ) {
+            addDomains.push('stream');   
+        }
+
+        this.addChilds(domains.concat(addDomains));
+        
+    },
 	constructChild : function(index) {
 		return new EIGERDomain(this, index);
 	},
@@ -483,14 +511,27 @@ EIGER.prototype = {
 		this.address = address;
 		this.port = port;
 	},
-	setVersion : function (version) {
-		this.version = version;
+	setVersion : function (version) { 
+		this.version = version;   
+        var versionArr = this.version.split('.');
+        this.versionArr = [];
+        for (var index in versionArr) {
+            this.versionArr.push(versionArr[index]);
+        }
+        this.reconstruct();
 	},
 	updateQItem : function(qInstance) {
 		if (qInstance.status === 2) {
-			qInstance.instance.updateValues(qInstance.getResponse(qInstance));
+			qInstance.instance.updateValues(qInstance.getResponse());
 		}
 	},
+    isVersionOrHigher : function(mayor, minor, patch) {
+        if ( ( mayor < this.versionArr[0] ) || (((minor < this.versionArr[1])||(patch <= this.versionArr[2] && minor == this.versionArr[1])) && mayor == this.versionArr[0]) ) {
+            return true;
+        } else {
+            return false;
+        }
+    },
 	unbind : function() {
 		this.handler.removeQueueListener(this) 
 	}
@@ -502,19 +543,26 @@ function EIGERDomain(superDet, index) {
 	this.superDet = superDet;
 	this.index = index;
     this.name = index;
-	this.children = this.addChilds(subdomains);
-	for (var index in specialKeys){
-		if (specialKeys[index]['domain'] === this.index) {
-			this.children[specialKeys[index]['subdomain']] = new EIGERSpecialKey(this.superDet, this, specialKeys[index]['subdomain'], specialKeys[index]['versionInURI']);
-			this[specialKeys[index]['subdomain']] = this.children[specialKeys[index]['subdomain']];
-		}
-	}
+    if (this.superDet.isVersionOrHigher(1,0,0)) {
+        this.constructVersionedChilds(subdomains,specialKeys.concat([{'domain' : 'monitor', 'subdomain' : 'version', 'versionInURI' : false},{'domain' : 'monitor', 'subdomain' : 'images', 'versionInURI' : true}]));
+    } else {
+        this.constructVersionedChilds(subdomains,specialKeys);
+    }
 };
 
 EIGERDomain.prototype = {
 	constructChild : function(index) {
 		return new EIGERSubDomain(this.superDet, this,  index);
-	}
+	},
+    constructVersionedChilds: function(vSubdomains, vSpecialKeys) {
+        this.addChilds(vSubdomains); 
+        for (var index in vSpecialKeys){
+            if (vSpecialKeys[index]['domain'] === this.index) {
+                this.children[vSpecialKeys[index]['subdomain']] = new EIGERSpecialKey(this.superDet, this, vSpecialKeys[index]['subdomain'], vSpecialKeys[index]['versionInURI']);
+                this[vSpecialKeys[index]['subdomain']] = this.children[vSpecialKeys[index]['subdomain']];
+            }
+        }
+    } 
 };
 
 function EIGERSubDomain(superDet, domain, index) {
@@ -523,7 +571,13 @@ function EIGERSubDomain(superDet, domain, index) {
 	this.domain = domain;
 	this.index = index;
     this.name = index;
-	this.children = this.addChilds(keys[this.domain.index][this.index]);
+    if (this.superDet.isVersionOrHigher(1,5,0)) {
+        this.addChilds(keys[this.domain.index][this.index].concat(['keys']));
+    } else if (this.index === 'config' || this.index ===  'status') {
+        this.addChilds(keys[this.domain.index][this.index].concat(['keys']));
+    } else {
+        this.addChilds(keys[this.domain.index][this.index]);
+    }
 };
 
 EIGERSubDomain.prototype = {
@@ -539,10 +593,9 @@ function EIGERKey(superDet, domain, subdomain, index) {
 	this.subdomain = subdomain;
 	this.index = index;
     this.name = index;
-	this.children = {};
 	if ( this.subdomain.index === 'command' ) {
 		this.constructChild('access_mode', 'w');
-	} else if ( this.subdomain.index === 'status' ) { // Fix for an incompability with JAUN, seems like a bug to me
+	} else if ( this.subdomain.index === 'status' || this.index == 'keys') { // Fix for an incompability with JAUN, seems like a bug to me
 		this.constructChild('access_mode', 'r');
     } else {
 		this.constructChild('access_mode', '');
@@ -561,6 +614,7 @@ EIGERKey.prototype = {
         };
     },
 	updateValues : function(valueTuple) {
+        var newKeys = [];
 		if (this.index === 'keys') {
 			for (var vIndex in valueTuple) {
 				var inKeys = false;
@@ -571,9 +625,10 @@ EIGERKey.prototype = {
 					}
 				}
 				if (!inKeys && !inExcludedKeys(valueTuple[vIndex])) {
-					keys[this.domain.index][this.subdomain.index].push(valueTuple[vIndex]);
+					newKeys.push(valueTuple[vIndex]);
 				}
 			}
+            this.subdomain.children.concat(this.subdomain.addChilds(newKeys));
 		}
 		for (var index in valueTuple) {
 			if (this[index] !== undefined) {
@@ -598,7 +653,6 @@ function EIGERSpecialKey(superDet, domain, subdomain, versionInURI) {
 	this.versionInURI = versionInURI;
 	this.index = '';
     this.name = subdomain;
-	this.children = {};
 	this.constructChild('access_mode', 'r');
 };
 
