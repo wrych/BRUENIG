@@ -1712,16 +1712,26 @@ function EIGER(address, port, handler, version) {
 };
 
 EIGER.prototype = {
-    reconstruct : function() {    
+    reconstruct : function() {   
+		// Delete all existing children
+		for (child in this.children) {
+			this[child] = [];
+			delete(this[child])
+		}
+		this.children = [];
+	
+		// Select domains depending on the version which is being run
+		// Monitor is excluded for Version 1.6.x because there are performance issues
         var addDomains = [];
-    
-        if ( this.isVersionOrHigher(1,0,0) ) {
+	
+        if ( this.isVersionOrHigher(1,0,0) && !this.isVersionOrHigher(1,6,0) ) {
             addDomains.push('monitor');
         }
         if ( this.isVersionOrHigher(1,5,0) ) {
             addDomains.push('stream');   
         }
-
+		
+		// Add domains as children
         this.addChilds(domains.concat(addDomains));
         
     },
@@ -1830,17 +1840,20 @@ EIGERKey.prototype = {
 		this[index] = tmp;
 	},
     updateKey : function (noExec) {
-        if (this.access_mode.value !== 'w') {
+		if (this.index === 'chi_start') {
+			console.log(this == this.superDet[this.domain.index][this.subdomain.index][this.index])
+		}
+		if (this.access_mode.value !== 'w') {
             return this.queueGetQuery(noExec);
         };
     },
 	updateValues : function(valueTuple) {
-        var newKeys = [];
 		if (this.index === 'keys') {
+			var newKeys = [];
 			for (var vIndex in valueTuple) {
 				var inKeys = false;
-				for (var kIndex in keys[this.domain.index][this.subdomain.index]) {
-					if (keys[this.domain.index][this.subdomain.index][kIndex] === valueTuple[vIndex]) {
+				for (var kIndex in this.superDet[this.domain.index][this.subdomain.index].children) {
+					if (this.superDet[this.domain.index][this.subdomain.index][kIndex].index === valueTuple[vIndex]) {
 						inKeys = true;
 						break;
 					}
@@ -3923,12 +3936,6 @@ function EIGERUiHandler(ui){
 EIGERUiHandler.prototype = {
 	_checkConnection : function (address, port, connect, init) {
 		console.log(sprintf('Checking connection to %s:%s...', address, port));
-		if (port == '') {
-			port = 80;
-		}
-		if (address != '') {
-			this.e.setHost(address,port);
-		}
 		
 		var callback = {'success' : [this._checkConSuccess, this, [address, port, init]],'error' : [this._checkConError, this, []]};
 
@@ -3943,6 +3950,8 @@ EIGERUiHandler.prototype = {
     _getKeys : function (data, address, port, init) {
         var version = this.e.detector.version.value.value;
         this.e.setVersion(version);
+
+		//this.e.reconstruct();
 		this.updateUiConnections();
         
         this.cmd02 = this.cmp01.addCmdLog();
@@ -3973,8 +3982,6 @@ EIGERUiHandler.prototype = {
 		this.cmd02.setCmdHeight(sprintf('%spx', cmdHeight*30));
 	},
 	_checkConSuccess : function (data, address, port, init) {
-        this.e.reconstruct();
-        
 		var qTime = data.listOfQueues[1]['qObject'].endTime - data.listOfQueues[0]['qObject'].startTime;
 		this.refInterval = (qTime+1000)*5;
 		console.log(sprintf('Requests took %s ms to complete. Using %s ms as reference interval setting.', qTime, this.refInterval));
@@ -3985,8 +3992,6 @@ EIGERUiHandler.prototype = {
 		alert(sprintf('%s\n\n%s','Failed to connect to detector.',data.statusText));
 	},
 	_connect : function(address, port, init) {
-		this.e.reconstruct();
-		this.updateUiConnections();
 		var titleStr = sprintf('Connecting to %s:%s...', address, port);
 		console.log(titleStr);
 		if (init) {
@@ -4265,7 +4270,7 @@ EIGERUiConnector.prototype = {
     }
 };
 
-var clientVersion = '1.3.0T3';
+var clientVersion = '1.3.0T4';
 var uniId = 0;
 
 $( document ).ready(function() {

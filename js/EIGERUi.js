@@ -1988,12 +1988,6 @@ function EIGERUiHandler(ui){
 EIGERUiHandler.prototype = {
 	_checkConnection : function (address, port, connect, init) {
 		console.log(sprintf('Checking connection to %s:%s...', address, port));
-		if (port == '') {
-			port = 80;
-		}
-		if (address != '') {
-			this.e.setHost(address,port);
-		}
 		
 		var callback = {'success' : [this._checkConSuccess, this, [address, port, init]],'error' : [this._checkConError, this, []]};
 
@@ -2008,6 +2002,8 @@ EIGERUiHandler.prototype = {
     _getKeys : function (data, address, port, init) {
         var version = this.e.detector.version.value.value;
         this.e.setVersion(version);
+
+		//this.e.reconstruct();
 		this.updateUiConnections();
         
         this.cmd02 = this.cmp01.addCmdLog();
@@ -2038,8 +2034,6 @@ EIGERUiHandler.prototype = {
 		this.cmd02.setCmdHeight(sprintf('%spx', cmdHeight*30));
 	},
 	_checkConSuccess : function (data, address, port, init) {
-        this.e.reconstruct();
-        
 		var qTime = data.listOfQueues[1]['qObject'].endTime - data.listOfQueues[0]['qObject'].startTime;
 		this.refInterval = (qTime+1000)*5;
 		console.log(sprintf('Requests took %s ms to complete. Using %s ms as reference interval setting.', qTime, this.refInterval));
@@ -2050,8 +2044,6 @@ EIGERUiHandler.prototype = {
 		alert(sprintf('%s\n\n%s','Failed to connect to detector.',data.statusText));
 	},
 	_connect : function(address, port, init) {
-		this.e.reconstruct();
-		this.updateUiConnections();
 		var titleStr = sprintf('Connecting to %s:%s...', address, port);
 		console.log(titleStr);
 		if (init) {

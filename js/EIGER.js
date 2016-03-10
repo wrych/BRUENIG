@@ -491,16 +491,26 @@ function EIGER(address, port, handler, version) {
 };
 
 EIGER.prototype = {
-    reconstruct : function() {    
+    reconstruct : function() {   
+		// Delete all existing children
+		for (child in this.children) {
+			this[child] = [];
+			delete(this[child])
+		}
+		this.children = [];
+	
+		// Select domains depending on the version which is being run
+		// Monitor is excluded for Version 1.6.x because there are performance issues
         var addDomains = [];
-    
-        if ( this.isVersionOrHigher(1,0,0) ) {
+	
+        if ( this.isVersionOrHigher(1,0,0) && !this.isVersionOrHigher(1,6,0) ) {
             addDomains.push('monitor');
         }
         if ( this.isVersionOrHigher(1,5,0) ) {
             addDomains.push('stream');   
         }
-
+		
+		// Add domains as children
         this.addChilds(domains.concat(addDomains));
         
     },
@@ -609,17 +619,20 @@ EIGERKey.prototype = {
 		this[index] = tmp;
 	},
     updateKey : function (noExec) {
-        if (this.access_mode.value !== 'w') {
+		if (this.index === 'chi_start') {
+			console.log(this == this.superDet[this.domain.index][this.subdomain.index][this.index])
+		}
+		if (this.access_mode.value !== 'w') {
             return this.queueGetQuery(noExec);
         };
     },
 	updateValues : function(valueTuple) {
-        var newKeys = [];
 		if (this.index === 'keys') {
+			var newKeys = [];
 			for (var vIndex in valueTuple) {
 				var inKeys = false;
-				for (var kIndex in keys[this.domain.index][this.subdomain.index]) {
-					if (keys[this.domain.index][this.subdomain.index][kIndex] === valueTuple[vIndex]) {
+				for (var kIndex in this.superDet[this.domain.index][this.subdomain.index].children) {
+					if (this.superDet[this.domain.index][this.subdomain.index][kIndex].index === valueTuple[vIndex]) {
 						inKeys = true;
 						break;
 					}
