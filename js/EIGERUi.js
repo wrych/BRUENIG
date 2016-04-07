@@ -276,7 +276,16 @@ function EIGERConvenienceFunctions (ui, eUi, action) {
             this.cmd01.exec();
             break;
 		case 'checkstate' :
-			this.cmd01.addCmd(this.eUi.e.detector.command.initialize, ['Put', '', true]); // Necessary work around JAUN
+			if (!this.eUi.e.isVersionOrHigher(1,6,0)) {
+				if (confirm('The detector will have to be reinitialized (JAUN Version 1.5.0 and older) in order to get the current state. Would you like to initialize the detector now?'))
+				{
+					this.cmd01.addCmd(this.eUi.e.detector.command.initialize, ['Put', '', true]); // Necessary work around JAUN
+				} else {
+					
+				}
+			} else {
+				this.cmd01.addCmd(this.eUi.e.detector.command.status_update, ['Put', '', true])
+			}
 			this.cmd01.addCmd(this.eUi.e.detector.status.state, ['GET', '', true]);
 			this.cmd01.addCmd(this.eUi.e.filewriter.status.state, ['GET', '', true]);
             var cmdHeight = 3;
@@ -394,6 +403,19 @@ function EIGERData (parent, id, name, description, ui, eUi) {
 	this.ttl01.setLvl('h2');
 	this.ttl01.setText('EIGER Data');
 	
+    this.addNewLine();
+    
+    this.btn01 = this.addWidget(Button, ['refresh'])
+    var callee = this;
+    this.btn01.click( function() {
+        callee.cmp01 = new EIGERSubseqCmdPrompt ( callee.ui.body, 0, 'EHC', 'EIGER Command Handler', callee.eUi, {'success' : [function() {}, callee, []],'error' : [function() {}, this, []]} );
+        callee.cmp01.setCloseDone(true);
+        callee.cmd01 = callee.cmp01.addCmdLog();
+        callee.cmd01.addCmd(callee.eUi.e.filewriter.files, ['GET', '']);
+        callee.cmd01.setCmdHeight('35px');
+        callee.cmd01.exec();
+    });
+    
 	this.addNewLine();
 	
 	this.lgh01 = this.addWidget(EIGERDataLogger, [this.eUi]);
@@ -502,7 +524,7 @@ EIGERLog.prototype = {
         this.iInst = window.setTimeout( function() {
             callee.disableLog.apply(callee,[]);
         }, 60000);
-        this.lbl01.getJElement().html('Please be aware that logging will automatically be disabled<br> after 60 seconds for performance consideratons.');
+        this.lbl01.getJElement().html('Please be aware that logging will automatically be disabled<br>after 60 seconds for performance consideratons.');
     },
     disableLog : function () {
         this.chk01.setValue(false);
@@ -943,7 +965,11 @@ EIGERCustomCmdPrompt.prototype = {
     },
     getDataType : function (key) {
         try { 
-            var dataType = key.value_type.value;
+            if (key.name === 'flatfield' || key.name === 'pixel_mask') {
+                var dataType = 'file';
+            } else {
+                var dataType = key.value_type.value;
+            }
         } catch(err) {
             if (key.subdomain.index === 'command') {
                 if (key.index === 'trigger') {
@@ -971,12 +997,17 @@ EIGERCustomCmdPrompt.prototype = {
                     this.val01.setTitle('Value');
                     this.val01.setValue(key.value.value);
                     break;
+                case 'int':
                 case 'uint':
                 case 'float':
                 case 'string':
                     this.val01 = this.vaa01.addWidget(Input,[]);
                     this.val01.setTitle('Value');
                     this.val01.setValue(key.value.value);
+                    break;
+                case 'file':
+                    this.val01 = this.vaa01.addWidget(FileInput,[])
+                    this.val01.setTitle('Select file to upload...');
                     break;
                 default:
                     break;
@@ -995,6 +1026,7 @@ EIGERCustomCmdPrompt.prototype = {
             case 'bool':
                 var value = this.val01.getValue();
                 break;
+            case 'int':
             case 'uint':
                 var value = filterInt(this.val01.getValue());
                 if (isNaN(value)) {
@@ -1006,7 +1038,10 @@ EIGERCustomCmdPrompt.prototype = {
                 if (isNaN(value)) {
                     throw sprintf('Failed to cast \'%s\' to %s...', this.val01.getValue(), dataType);
                 }
-                break
+                break;
+            case 'file':
+                var value = this.val01.getFile();
+                break;
             default:
                 var value = this.val01.getValue();
         }
@@ -1112,12 +1147,20 @@ EIGERCustomCmdPrompt.prototype = {
         var execStyle = (this.chk01.getValue()) ? this.cmd01.EXEC_CLICK : this.cmd01.EXEC_IMMED;
         switch(this.sel01.getValue()) {
             case 'GET':
-                this.addQObj(key.updateKey(true), execStyle);
+                if (this.getDataType(key) === 'file') {
+                    this.addQObj(key.downloadFile(true), execStyle)
+                } else {
+                    this.addQObj(key.updateKey(true), execStyle);
+                }
                 break;
             case 'PUT':
                 try { 
-                    var value = this.getValue(key);
-                    this.addQObj(key.setValue(value,true), execStyle);
+                    var value = this.getValue(key);       
+                    if (this.getDataType(key) === 'file') {
+                        this.addQObj(key.setUploadFile(value,true), execStyle);
+                    } else {
+                        this.addQObj(key.setValue(value,true), execStyle);
+                    }
                 } catch (err) {
                     alert(sprintf('Error in parsing value.\n\n%s', err));
                 }
@@ -1312,10 +1355,10 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     });
     
     this.pre01 = this.addWidget(Pre,[]);
-    this.pre01.getJElement().css('overflow-y','scroll');
+    //this.pre01.getJElement().css('overflow-y','scroll');
     this.pre01.setWidth('700px');
-    this.pre01.getJElement().css('max-height','200px');
-    this.pre01.setVisibility(false);
+    //this.pre01.getJElement().css('max-height','200px');
+    //this.pre01.setVisibility(false);
     this.pre01.addClickListener(this.pre01.getJElement(),function () {});
     
     this.tbl02 = this.addWidget(Table,[]);
@@ -1506,8 +1549,8 @@ EIGERCmdInformation.prototype = {
                 
                 this.tbr02.tfd04.setText(this.qInstance.request.status);
                 this.tbr03.tfd04.setText(this.qInstance.request.statusText);
-                this.tbr08.tfd04.lbl01.setText(this.qInstance.request.responseText);
-                this.tbr08.tfd04.setTitle(this.qInstance.request.responseText);
+                this.tbr08.tfd04.lbl01.setText(JSON.stringify(this.qInstance.request.response));
+                this.tbr08.tfd04.setTitle(JSON.stringify(this.qInstance.request.response));
                 
                 this.tbr10.tfd02.setText(msToISO(this.qInstance.startTime));
                 this.tbr10.tfd04.setText(msToISO(this.qInstance.endTime));
@@ -1522,8 +1565,8 @@ EIGERCmdInformation.prototype = {
                     this.tbr02.tfd04.setText(this.qInstance.request.status);
                     this.tbr03.tfd04.setText(this.qInstance.request.statusText);
                     this.tbr03.tfd04.setTitle(this.qInstance.request.statusText);
-                    this.tbr08.tfd04.lbl01.setText(this.qInstance.request.responseText);
-                    this.tbr08.tfd04.setTitle(this.qInstance.request.responseText);
+                    this.tbr08.tfd04.lbl01.setText(JSON.stringify(this.qInstance.request.response));
+                    this.tbr08.tfd04.setTitle(JSON.stringify(this.qInstance.request.response));
                 } catch (err) {
                     this.tbr02.tfd04.setText('n/a');
                     this.tbr03.tfd04.setText('error');
@@ -1778,7 +1821,12 @@ EIGERSubseqCmdHandler.prototype = {
 				this.rows[id].tfd03.ind01.ok();
                 if (qInstance.method === 'GET') {
                     try {
-                        this.rows[id].tfd04.setText(qInstance.response.value);
+                        if (qInstance.acceptType === 'application/tiff') {
+                            this.rows[id].btn01 = this.rows[id].tfd04.addWidget(Button, ['download']);
+                            this.rows[id].btn01.click(qInstance.download, qInstance);
+                        } else {
+                            this.rows[id].tfd04.setText(qInstance.request.response.value);
+                        }
                     } catch (err) {}
                 }
 				if ( qListItem['endingCommand'] === this.ENDING_COMMAND ) {
@@ -2086,7 +2134,15 @@ EIGERUiHandler.prototype = {
 		this.cmd01 = '';
 		this.e.connectionStateID = 2;
 		var acqView = this.getView('Acquire');
-		this.switchView(acqView);
+		
+        //Remove old click listeners
+        this.ui.cset.inp01.setDisabled(true);
+        this.ui.cset.inp02.setDisabled(true);
+        this.ui.cset.frm01.clearSubmit();
+        this.ui.cset.btn01.setText('disconnect');
+        this.ui.cset.btn01.click(function() {window.location.reload(),[]});
+        
+        this.switchView(acqView);
         this.ui.acq.connect();
 		this.ui.acq.disableAdvMode();
 		this.ui.acq.chk04.setDisabled(false);

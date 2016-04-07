@@ -2017,7 +2017,7 @@ function EIGERAcqSet(parent, id, name, description, ui, eUi) {
     
  	this.btn05 = this.addWidget(Button,['Custom Queue']);
 	this.btn05.click(this.customQ, this);
-	this.addAdvWidget(this.btn05);   
+	this.addAdvWidget(this.btn05);    
     
     this.addAdvWidget(this.addNewLine());
 		
@@ -2922,6 +2922,10 @@ EIGERCustomCmdPrompt.prototype = {
                 case 'uint':
                 case 'float':
                 case 'string':
+                    console.log(key)
+                    if (key.name === 'flatfield' || key.name === 'pixel_mask') {
+                        console.log('Upload tiff...')
+                    }
                     this.val01 = this.vaa01.addWidget(Input,[]);
                     this.val01.setTitle('Value');
                     this.val01.setValue(key.value.value);
@@ -2978,6 +2982,7 @@ EIGERCustomCmdPrompt.prototype = {
         this.sel04.empty();
         if (this.eUi.e[this.sel02.getValue()][this.sel03.getValue()] instanceof EIGERSubDomain) {
             this.addOptions(this.sel04, this.eUi.e[this.sel02.getValue()][this.sel03.getValue()].children);   
+            console.log(this.eUi.e[this.sel02.getValue()][this.sel03.getValue()].children)
             this.sel04.setDisabled(false);
         } else if (this.eUi.e[this.sel02.getValue()][this.sel03.getValue()] instanceof EIGERSpecialKey) {
             this.enableMode(this.eUi.e[this.sel02.getValue()][this.sel03.getValue()].access_mode.value);
@@ -3065,7 +3070,12 @@ EIGERCustomCmdPrompt.prototype = {
             case 'PUT':
                 try { 
                     var value = this.getValue(key);
-                    this.addQObj(key.setValue(value,true), execStyle);
+                    console.log(this.getDataType(key));
+                    if (this.getDataType(key) === 'file') {
+                        this.addQObj(key.setUploadFile(value,true), execStyle);
+                    } else {
+                        this.addQObj(key.setValue(value,true), execStyle);
+                    }
                 } catch (err) {
                     alert(sprintf('Error in parsing value.\n\n%s', err));
                 }

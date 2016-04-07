@@ -1,4 +1,4 @@
-var clientVersion = '1.3.0T4';
+var clientVersion = '1.4.0T1';
 var uniId = 0;
 
 $( document ).ready(function() {
@@ -158,6 +158,9 @@ $( document ).ready(function() {
     pa05.leave = function () {
         p05_log01.disableLog();
     }
+    pa04.activate = function () {
+        eUi.e.filewriter.files.update();
+    }   
 
 	// Main Area Footer
 	

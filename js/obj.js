@@ -24,6 +24,22 @@ function toLocalISO(datetime) {
         + ':' + pad(tzo % 60);
 }
 
+// Function for saving a data object as file
+function saveFile(filename, dataBlob) {
+    if(window.navigator.msSaveOrOpenBlob) {
+        window.navigator.msSaveBlob(dataBlob, filename);
+    }
+    else{
+        var elem = window.document.createElement('a');
+        console.log(filename)
+        elem.download = filename;    
+        elem.href = window.URL.createObjectURL(dataBlob);
+        document.body.appendChild(elem);
+        elem.click();        
+        document.body.removeChild(elem);
+    }
+}
+
 function filterInt (value) {
   if(/^(\-|\+)?([0-9]+|Infinity)$/.test(value))
     return Number(value);
@@ -166,6 +182,9 @@ Area.prototype = {
 				action.apply(callee, [event] );
 			};
 		});
+	},
+	removeClickListener: function (area) {
+		$( area ).unbind( "click" );
 	},
 	click : function (action, thisArg) {
 		return this.clickListeners.push([action, thisArg])-1;
@@ -348,14 +367,14 @@ Pre.prototype = {
 
 function Input(parent, id, name, description) {
 	ContainerArea.call(this, parent, id, name, description);
-	this.type = 'Input'
-	this.label = new _Label(this, this.id, this.name, this.description)
+	this.type = 'Input';
+	this.label = new _Label(this, this.id, this.name, this.description);
 	this.nwl01 = this.addNewLine();
 	this.jInput = $('<input>').prop(
 		{
 			type: 'Text'
 		}
-	).appendTo(this.jElement)
+	).appendTo(this.jElement);
 }
 
 Input.prototype = {
@@ -384,6 +403,24 @@ Input.prototype = {
 	getTitle : function(args) {
 		this.label.getText.apply(this.label,arguments);
 	}
+};
+
+function FileInput(parent, id, name, description) {
+	ContainerArea.call(this, parent, id, name, description);
+	this.type = 'FileInput';
+	this.label = new _Label(this, this.id, this.name, this.description);
+	this.nwl01 = this.addNewLine();
+	this.jInput = $('<input>').prop(
+		{
+			type: 'file'
+		}
+	).appendTo(this.jElement);
+}
+
+FileInput.prototype = {
+    getFile : function() {
+        return this.jInput.get(0).files[0]
+    }
 };
 
 function CheckBox(parent, id, name, description) {
@@ -687,12 +724,12 @@ Form.prototype = {
 	submit : function(action, thisArg) {
 		this.submitListeners.push([action, thisArg])
 	},
-        clearSubmit : function () {
+    clearSubmit : function () {
 		this.submitListeners = [];
-        },
-        getSubmit : function () {
+    },
+    getSubmit : function () {
 		return this.submitListeners;
-        },
+    },
 	submitted : function(event){
 		if (!this.disabled) {
 			for (var i = 0 ; i < this.submitListeners.length ; i++) {
@@ -910,6 +947,7 @@ extend(ContainerArea, Title);
 extend(ContainerArea, Image);
 extend(ContainerArea, Pre);
 extend(ContainerArea, Input);
+extend(Input, FileInput);
 extend(ContainerArea, Select);
 extend(ContainerArea, Indicator);
 extend(ContainerArea, Button);

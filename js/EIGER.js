@@ -44,12 +44,27 @@ Query Statuses:
 1: Started
 2: Successfully Ended
 */
-function EIGERQuery(instance, handler, method, data) {
+function EIGERQuery(instance, handler, method, data, mimeType, acceptType, processData) {
 	this.id = undefined;
 	this.handler = handler;
 	this.method = method;
 	this.instance = instance;
 	this.data = data;
+    if (mimeType === undefined) {
+        this.mimeType = "application/json";
+    } else {
+        this.mimeType = mimeType;
+    }
+    if (acceptType === undefined) {
+        this.acceptType = "application/json";
+    } else {
+        this.acceptType = acceptType;
+    }
+    if (processData === undefined) {
+        this.processData = true;
+    } else {
+        this.processData = processData;
+    }
 	this.status = 0;
     this.progressText = '';
 };
@@ -87,12 +102,9 @@ EIGERQuery.prototype = {
 		this.status = -2;
 		this.handler.notifyQListenerUpdate(this);
 	},
-	setResponse : function(response) {
-		this.response = response;
-	},
-	getResponse : function() {
-		return this.response;
-	}
+    download : function() {
+        saveFile(sprintf('%s.tif', this.instance.index), this.request.response);
+    }
 };
 
 function EIGERMQuery(handler, cmd, widget, newQItemCallback, updateQItemCallback) {
@@ -113,8 +125,6 @@ function EIGERMQuery(handler, cmd, widget, newQItemCallback, updateQItemCallback
 	
 	this.qDone = 0;
 	this.qCount = this.listOfQueues.length;
-	
-	this.progress = 0;
 };
 
 EIGERMQuery.prototype = {
@@ -139,12 +149,17 @@ EIGERMQuery.prototype = {
 	setStatus : function(status) {
 		this.status = status;
 	},
-	exec : function() {
-		this.handler.addQueueListener(this, this.updateQ, this.newQ);
-		this.status = 1;
-		for ( var el in this.listOfQueues) {
-			this.listOfQueues[el].exec();
-		}
+	exec : function() {    
+        if (this.qDone === this.qCount) {
+            this.status = 2;
+            this.qListener['updateCallback'].apply(this.qListener['widget'], [this]);
+        } else {
+            this.handler.addQueueListener(this, this.updateQ, this.newQ);
+            this.status = 1;
+            for ( var el in this.listOfQueues) {
+                this.listOfQueues[el].exec();
+            }
+        }
 	},
 	newQ : function (qInstance) {
 
@@ -196,10 +211,10 @@ EIGERHandler.prototype = {
 		qInstance.setId(id);
 		this.notifyQListenerNew(qInstance);
 		this.activeQueries[id] = qInstance;
-		qInstance.progressText = 'Quered';
+		qInstance.progressText = 'Queued';
         if (!noExec) {
 			qInstance.exec();
-		}
+        }
 		return qInstance;
 	},
 	addQueryListenerList : function (list) {
@@ -270,6 +285,7 @@ EIGERHandler.prototype = {
 		qInstance.progressText = 'Sent';
 		this.notifyQListenerUpdate(qInstance);
 		var callee = this;
+        // Workaround for getting verions (no Version field)
 		if (qInstance.instance.versionInURI === true) {
 			var url = sprintf('http://%s:%s/%s/api/%s/%s/%s',
 				qInstance.instance.superDet.address, 
@@ -287,31 +303,43 @@ EIGERHandler.prototype = {
 				qInstance.instance.index);
 		};
 		qInstance.startTime = new Date().getTime();
-		qInstance.request = $.ajax({
-			url: url,
-			type: qInstance.method,
-			contentType: "application/json",
-            timeout: 0,
-			data: qInstance.data
-			});
-		qInstance.request.done(function(data) { 
-				callee.sucess.apply(callee, [qInstance, data]);
-		});
-		qInstance.request.fail(function(data) { 
-				callee.error.apply(callee, [qInstance, data]);
-		});
 
+        qInstance.request = new XMLHttpRequest();
+        qInstance.request.open(qInstance.method, url, true);
+        if (qInstance.acceptType === 'application/tiff') {
+            qInstance.request.responseType = 'blob';
+        } else {
+            qInstance.request.responseType = 'json';
+        }
+
+        qInstance.request.setRequestHeader('Content-type', qInstance.mimeType);
+        qInstance.request.setRequestHeader('Accept', qInstance.acceptType)
+
+        qInstance.request.addEventListener("progress", function(e){});
+        qInstance.request.addEventListener("load", 
+            function(e) { 
+                callee.sucess.apply(callee, [qInstance]);
+            });    
+        qInstance.request.addEventListener("error", 
+            function(e) { 
+                callee.error.apply(callee, [qInstance]);
+            });
+        qInstance.request.addEventListener("abort", 
+            function(e) { 
+                callee.error.apply(callee, [qInstance]);
+            });
+
+        qInstance.request.send(qInstance.data);
 	},
-    sucess : function (qInstance, data) {
-		qInstance.setResponse(data);
+    sucess : function (qInstance) {
         // Remove <&& qInstance.instance.domain === 'detector'> once API is consistent :)
         if (qInstance.method === 'PUT' && qInstance.instance.subdomain.index === 'config' && qInstance.instance.domain.index === 'detector') {
-            this._putSuccess(qInstance, data);
+            this._putSuccess(qInstance);
         } else {
-            this._success(qInstance, data);
+            this._success(qInstance);
         }
     },
-	_success : function(qInstance, data) {
+	_success : function(qInstance) {
 		qInstance.setStatus(2);
 		qInstance.progressText = 'Done';
 		qInstance.endTime = new Date().getTime();
@@ -319,11 +347,10 @@ EIGERHandler.prototype = {
 		this.history++;
 		delete this.activeQueries[qInstance.id];
 	},
-    _putSuccess : function (qInstance, data) {
-        var changedKeys = data;
+    _putSuccess : function (qInstance) {
+        var changedKeys = qInstance.request.response;
 		var domain = qInstance.instance.domain;
 		var subdomain = qInstance.instance.subdomain;
-		
         if (!isNaN(Number(changedKeys.length)) && changedKeys.length > 0) {
             var qList = [];
             for (var i = 0 ; i < changedKeys.length ; i++) {
@@ -346,7 +373,7 @@ EIGERHandler.prototype = {
             this._success(qMInstance.mainQ, qMInstance.mainQ.response);
         }
     },
-	error : function(qInstance, data) {
+	error : function(qInstance) {
         if (qInstance.request.status == 504 || qInstance.request.statusText === 'timeout') {
             switch (qInstance.instance.index) {
                 case 'trigger' :
@@ -359,15 +386,14 @@ EIGERHandler.prototype = {
                     this.stateListener(qInstance, ['idle'], ['initialize']);
                     break;
                 default:
-                    this._error(qInstance, data);
+                    this._error(qInstance);
                     break;
             }
         } else {
-            this._error(qInstance, data);
+            this._error(qInstance);
         }
 	},
-    _error : function (qInstance, data) {
-        qInstance.setResponse(data);
+    _error : function (qInstance) {
 		qInstance.progressText = 'Error';
         qInstance.setStatus(-1);
         this.notifyQListenerUpdate(qInstance);
@@ -445,8 +471,14 @@ EIGERContainer.prototype = {
 	queueGetQuery : function(noExec) {
 		return this.queueQuery('GET', '', noExec);
 	},
+	queueGetFileQuery : function(noExec) {
+		return this.superDet.handler.add2Queue(new EIGERQuery(this, this.superDet.handler, 'GET', '', false, 'application/tiff', false), noExec);
+	},
 	queuePutQuery : function(data, noExec) {
 		return this.queueQuery('PUT', data, noExec);
+	},
+	queuePutFileQuery : function(data, noExec) {
+		return this.superDet.handler.add2Queue(new EIGERQuery(this, this.superDet.handler, 'PUT', data, 'application/tiff', 'application/json', false), noExec);
 	},
 	queueDeleteQuery : function(noExec) {
 		return this.queueQuery('DELETE', '', noExec);
@@ -459,7 +491,7 @@ EIGERContainer.prototype = {
 		} else {
 			var qList = [];
 			for (var el in this.children) {
-				var retArr = this.children[el].update(noExec);
+                var retArr = this.children[el].update(noExec);
 				if (retArr !== undefined) {
 					qList = qList.concat(retArr);
 				}
@@ -503,7 +535,8 @@ EIGER.prototype = {
 		// Monitor is excluded for Version 1.6.x because there are performance issues
         var addDomains = [];
 	
-        if ( this.isVersionOrHigher(1,0,0) && !this.isVersionOrHigher(1,6,0) ) {
+        //if ( this.isVersionOrHigher(1,0,0) && !this.isVersionOrHigher(1,6,0) ) {
+        if ( this.isVersionOrHigher(1,0,0) ) {
             addDomains.push('monitor');
         }
         if ( this.isVersionOrHigher(1,5,0) ) {
@@ -532,7 +565,7 @@ EIGER.prototype = {
 	},
 	updateQItem : function(qInstance) {
 		if (qInstance.status === 2) {
-			qInstance.instance.updateValues(qInstance.getResponse());
+			qInstance.instance.updateValues(qInstance.request.response);
 		}
 	},
     isVersionOrHigher : function(mayor, minor, patch) {
@@ -637,7 +670,7 @@ EIGERKey.prototype = {
 						break;
 					}
 				}
-				if (!inKeys && !inExcludedKeys(valueTuple[vIndex])) {
+				if (!inKeys) {
 					newKeys.push(valueTuple[vIndex]);
 				}
 			}
@@ -654,7 +687,13 @@ EIGERKey.prototype = {
 	},
 	setValue : function(value, noExec) {
 		return this.queuePutQuery(JSON.stringify({'value':value}), noExec);
-	}
+	},
+    setUploadFile : function(file, noExec) {
+        return this.queuePutFileQuery(file, noExec);
+    },
+    downloadFile : function(noExec) {
+        return this.queueGetFileQuery(noExec);
+    }
 };
 
 function EIGERSpecialKey(superDet, domain, subdomain, versionInURI) {
