@@ -24,6 +24,22 @@ function toLocalISO(datetime) {
         + ':' + pad(tzo % 60);
 }
 
+// Function for saving a data object as file
+function saveFile(filename, dataBlob) {
+    if(window.navigator.msSaveOrOpenBlob) {
+        window.navigator.msSaveBlob(dataBlob, filename);
+    }
+    else{
+        var elem = window.document.createElement('a');
+        console.log(filename)
+        elem.download = filename;    
+        elem.href = window.URL.createObjectURL(dataBlob);
+        document.body.appendChild(elem);
+        elem.click();        
+        document.body.removeChild(elem);
+    }
+}
+
 function filterInt (value) {
   if(/^(\-|\+)?([0-9]+|Infinity)$/.test(value))
     return Number(value);
@@ -166,6 +182,9 @@ Area.prototype = {
 				action.apply(callee, [event] );
 			};
 		});
+	},
+	removeClickListener: function (area) {
+		$( area ).unbind( "click" );
 	},
 	click : function (action, thisArg) {
 		return this.clickListeners.push([action, thisArg])-1;
@@ -348,14 +367,14 @@ Pre.prototype = {
 
 function Input(parent, id, name, description) {
 	ContainerArea.call(this, parent, id, name, description);
-	this.type = 'Input'
-	this.label = new _Label(this, this.id, this.name, this.description)
+	this.type = 'Input';
+	this.label = new _Label(this, this.id, this.name, this.description);
 	this.nwl01 = this.addNewLine();
 	this.jInput = $('<input>').prop(
 		{
 			type: 'Text'
 		}
-	).appendTo(this.jElement)
+	).appendTo(this.jElement);
 }
 
 Input.prototype = {
@@ -384,6 +403,24 @@ Input.prototype = {
 	getTitle : function(args) {
 		this.label.getText.apply(this.label,arguments);
 	}
+};
+
+function FileInput(parent, id, name, description) {
+	ContainerArea.call(this, parent, id, name, description);
+	this.type = 'FileInput';
+	this.label = new _Label(this, this.id, this.name, this.description);
+	this.nwl01 = this.addNewLine();
+	this.jInput = $('<input>').prop(
+		{
+			type: 'file'
+		}
+	).appendTo(this.jElement);
+}
+
+FileInput.prototype = {
+    getFile : function() {
+        return this.jInput.get(0).files[0]
+    }
 };
 
 function CheckBox(parent, id, name, description) {
@@ -687,12 +724,12 @@ Form.prototype = {
 	submit : function(action, thisArg) {
 		this.submitListeners.push([action, thisArg])
 	},
-        clearSubmit : function () {
+    clearSubmit : function () {
 		this.submitListeners = [];
-        },
-        getSubmit : function () {
+    },
+    getSubmit : function () {
 		return this.submitListeners;
-        },
+    },
 	submitted : function(event){
 		if (!this.disabled) {
 			for (var i = 0 ; i < this.submitListeners.length ; i++) {
@@ -910,6 +947,7 @@ extend(ContainerArea, Title);
 extend(ContainerArea, Image);
 extend(ContainerArea, Pre);
 extend(ContainerArea, Input);
+extend(Input, FileInput);
 extend(ContainerArea, Select);
 extend(ContainerArea, Indicator);
 extend(ContainerArea, Button);
@@ -1265,12 +1303,27 @@ Query Statuses:
 1: Started
 2: Successfully Ended
 */
-function EIGERQuery(instance, handler, method, data) {
+function EIGERQuery(instance, handler, method, data, mimeType, acceptType, processData) {
 	this.id = undefined;
 	this.handler = handler;
 	this.method = method;
 	this.instance = instance;
 	this.data = data;
+    if (mimeType === undefined) {
+        this.mimeType = "application/json";
+    } else {
+        this.mimeType = mimeType;
+    }
+    if (acceptType === undefined) {
+        this.acceptType = "application/json";
+    } else {
+        this.acceptType = acceptType;
+    }
+    if (processData === undefined) {
+        this.processData = true;
+    } else {
+        this.processData = processData;
+    }
 	this.status = 0;
     this.progressText = '';
 };
@@ -1308,12 +1361,9 @@ EIGERQuery.prototype = {
 		this.status = -2;
 		this.handler.notifyQListenerUpdate(this);
 	},
-	setResponse : function(response) {
-		this.response = response;
-	},
-	getResponse : function() {
-		return this.response;
-	}
+    download : function() {
+        saveFile(sprintf('%s.tif', this.instance.index), this.request.response);
+    }
 };
 
 function EIGERMQuery(handler, cmd, widget, newQItemCallback, updateQItemCallback) {
@@ -1334,8 +1384,6 @@ function EIGERMQuery(handler, cmd, widget, newQItemCallback, updateQItemCallback
 	
 	this.qDone = 0;
 	this.qCount = this.listOfQueues.length;
-	
-	this.progress = 0;
 };
 
 EIGERMQuery.prototype = {
@@ -1360,12 +1408,17 @@ EIGERMQuery.prototype = {
 	setStatus : function(status) {
 		this.status = status;
 	},
-	exec : function() {
-		this.handler.addQueueListener(this, this.updateQ, this.newQ);
-		this.status = 1;
-		for ( var el in this.listOfQueues) {
-			this.listOfQueues[el].exec();
-		}
+	exec : function() {    
+        if (this.qDone === this.qCount) {
+            this.status = 2;
+            this.qListener['updateCallback'].apply(this.qListener['widget'], [this]);
+        } else {
+            this.handler.addQueueListener(this, this.updateQ, this.newQ);
+            this.status = 1;
+            for ( var el in this.listOfQueues) {
+                this.listOfQueues[el].exec();
+            }
+        }
 	},
 	newQ : function (qInstance) {
 
@@ -1417,10 +1470,10 @@ EIGERHandler.prototype = {
 		qInstance.setId(id);
 		this.notifyQListenerNew(qInstance);
 		this.activeQueries[id] = qInstance;
-		qInstance.progressText = 'Quered';
+		qInstance.progressText = 'Queued';
         if (!noExec) {
 			qInstance.exec();
-		}
+        }
 		return qInstance;
 	},
 	addQueryListenerList : function (list) {
@@ -1491,6 +1544,7 @@ EIGERHandler.prototype = {
 		qInstance.progressText = 'Sent';
 		this.notifyQListenerUpdate(qInstance);
 		var callee = this;
+        // Workaround for getting verions (no Version field)
 		if (qInstance.instance.versionInURI === true) {
 			var url = sprintf('http://%s:%s/%s/api/%s/%s/%s',
 				qInstance.instance.superDet.address, 
@@ -1508,31 +1562,43 @@ EIGERHandler.prototype = {
 				qInstance.instance.index);
 		};
 		qInstance.startTime = new Date().getTime();
-		qInstance.request = $.ajax({
-			url: url,
-			type: qInstance.method,
-			contentType: "application/json",
-            timeout: 0,
-			data: qInstance.data
-			});
-		qInstance.request.done(function(data) { 
-				callee.sucess.apply(callee, [qInstance, data]);
-		});
-		qInstance.request.fail(function(data) { 
-				callee.error.apply(callee, [qInstance, data]);
-		});
 
+        qInstance.request = new XMLHttpRequest();
+        qInstance.request.open(qInstance.method, url, true);
+        if (qInstance.acceptType === 'application/tiff') {
+            qInstance.request.responseType = 'blob';
+        } else {
+            qInstance.request.responseType = 'json';
+        }
+
+        qInstance.request.setRequestHeader('Content-type', qInstance.mimeType);
+        qInstance.request.setRequestHeader('Accept', qInstance.acceptType)
+
+        qInstance.request.addEventListener("progress", function(e){});
+        qInstance.request.addEventListener("load", 
+            function(e) { 
+                callee.sucess.apply(callee, [qInstance]);
+            });    
+        qInstance.request.addEventListener("error", 
+            function(e) { 
+                callee.error.apply(callee, [qInstance]);
+            });
+        qInstance.request.addEventListener("abort", 
+            function(e) { 
+                callee.error.apply(callee, [qInstance]);
+            });
+
+        qInstance.request.send(qInstance.data);
 	},
-    sucess : function (qInstance, data) {
-		qInstance.setResponse(data);
+    sucess : function (qInstance) {
         // Remove <&& qInstance.instance.domain === 'detector'> once API is consistent :)
         if (qInstance.method === 'PUT' && qInstance.instance.subdomain.index === 'config' && qInstance.instance.domain.index === 'detector') {
-            this._putSuccess(qInstance, data);
+            this._putSuccess(qInstance);
         } else {
-            this._success(qInstance, data);
+            this._success(qInstance);
         }
     },
-	_success : function(qInstance, data) {
+	_success : function(qInstance) {
 		qInstance.setStatus(2);
 		qInstance.progressText = 'Done';
 		qInstance.endTime = new Date().getTime();
@@ -1540,11 +1606,10 @@ EIGERHandler.prototype = {
 		this.history++;
 		delete this.activeQueries[qInstance.id];
 	},
-    _putSuccess : function (qInstance, data) {
-        var changedKeys = data;
+    _putSuccess : function (qInstance) {
+        var changedKeys = qInstance.request.response;
 		var domain = qInstance.instance.domain;
 		var subdomain = qInstance.instance.subdomain;
-		
         if (!isNaN(Number(changedKeys.length)) && changedKeys.length > 0) {
             var qList = [];
             for (var i = 0 ; i < changedKeys.length ; i++) {
@@ -1567,7 +1632,7 @@ EIGERHandler.prototype = {
             this._success(qMInstance.mainQ, qMInstance.mainQ.response);
         }
     },
-	error : function(qInstance, data) {
+	error : function(qInstance) {
         if (qInstance.request.status == 504 || qInstance.request.statusText === 'timeout') {
             switch (qInstance.instance.index) {
                 case 'trigger' :
@@ -1580,15 +1645,14 @@ EIGERHandler.prototype = {
                     this.stateListener(qInstance, ['idle'], ['initialize']);
                     break;
                 default:
-                    this._error(qInstance, data);
+                    this._error(qInstance);
                     break;
             }
         } else {
-            this._error(qInstance, data);
+            this._error(qInstance);
         }
 	},
-    _error : function (qInstance, data) {
-        qInstance.setResponse(data);
+    _error : function (qInstance) {
 		qInstance.progressText = 'Error';
         qInstance.setStatus(-1);
         this.notifyQListenerUpdate(qInstance);
@@ -1666,8 +1730,14 @@ EIGERContainer.prototype = {
 	queueGetQuery : function(noExec) {
 		return this.queueQuery('GET', '', noExec);
 	},
+	queueGetFileQuery : function(noExec) {
+		return this.superDet.handler.add2Queue(new EIGERQuery(this, this.superDet.handler, 'GET', '', false, 'application/tiff', false), noExec);
+	},
 	queuePutQuery : function(data, noExec) {
 		return this.queueQuery('PUT', data, noExec);
+	},
+	queuePutFileQuery : function(data, noExec) {
+		return this.superDet.handler.add2Queue(new EIGERQuery(this, this.superDet.handler, 'PUT', data, 'application/tiff', 'application/json', false), noExec);
 	},
 	queueDeleteQuery : function(noExec) {
 		return this.queueQuery('DELETE', '', noExec);
@@ -1680,7 +1750,7 @@ EIGERContainer.prototype = {
 		} else {
 			var qList = [];
 			for (var el in this.children) {
-				var retArr = this.children[el].update(noExec);
+                var retArr = this.children[el].update(noExec);
 				if (retArr !== undefined) {
 					qList = qList.concat(retArr);
 				}
@@ -1724,7 +1794,8 @@ EIGER.prototype = {
 		// Monitor is excluded for Version 1.6.x because there are performance issues
         var addDomains = [];
 	
-        if ( this.isVersionOrHigher(1,0,0) && !this.isVersionOrHigher(1,6,0) ) {
+        //if ( this.isVersionOrHigher(1,0,0) && !this.isVersionOrHigher(1,6,0) ) {
+        if ( this.isVersionOrHigher(1,0,0) ) {
             addDomains.push('monitor');
         }
         if ( this.isVersionOrHigher(1,5,0) ) {
@@ -1753,7 +1824,7 @@ EIGER.prototype = {
 	},
 	updateQItem : function(qInstance) {
 		if (qInstance.status === 2) {
-			qInstance.instance.updateValues(qInstance.getResponse());
+			qInstance.instance.updateValues(qInstance.request.response);
 		}
 	},
     isVersionOrHigher : function(mayor, minor, patch) {
@@ -1858,7 +1929,7 @@ EIGERKey.prototype = {
 						break;
 					}
 				}
-				if (!inKeys && !inExcludedKeys(valueTuple[vIndex])) {
+				if (!inKeys) {
 					newKeys.push(valueTuple[vIndex]);
 				}
 			}
@@ -1875,7 +1946,13 @@ EIGERKey.prototype = {
 	},
 	setValue : function(value, noExec) {
 		return this.queuePutQuery(JSON.stringify({'value':value}), noExec);
-	}
+	},
+    setUploadFile : function(file, noExec) {
+        return this.queuePutFileQuery(file, noExec);
+    },
+    downloadFile : function(noExec) {
+        return this.queueGetFileQuery(noExec);
+    }
 };
 
 function EIGERSpecialKey(superDet, domain, subdomain, versionInURI) {
@@ -2017,7 +2094,7 @@ function EIGERAcqSet(parent, id, name, description, ui, eUi) {
     
  	this.btn05 = this.addWidget(Button,['Custom Queue']);
 	this.btn05.click(this.customQ, this);
-	this.addAdvWidget(this.btn05);    
+	this.addAdvWidget(this.btn05);   
     
     this.addAdvWidget(this.addNewLine());
 		
@@ -2224,7 +2301,16 @@ function EIGERConvenienceFunctions (ui, eUi, action) {
             this.cmd01.exec();
             break;
 		case 'checkstate' :
-			this.cmd01.addCmd(this.eUi.e.detector.command.initialize, ['Put', '', true]); // Necessary work around JAUN
+			if (!this.eUi.e.isVersionOrHigher(1,6,0)) {
+				if (confirm('The detector will have to be reinitialized (JAUN Version 1.5.0 and older) in order to get the current state. Would you like to initialize the detector now?'))
+				{
+					this.cmd01.addCmd(this.eUi.e.detector.command.initialize, ['Put', '', true]); // Necessary work around JAUN
+				} else {
+					
+				}
+			} else {
+				this.cmd01.addCmd(this.eUi.e.detector.command.status_update, ['Put', '', true])
+			}
 			this.cmd01.addCmd(this.eUi.e.detector.status.state, ['GET', '', true]);
 			this.cmd01.addCmd(this.eUi.e.filewriter.status.state, ['GET', '', true]);
             var cmdHeight = 3;
@@ -2342,6 +2428,19 @@ function EIGERData (parent, id, name, description, ui, eUi) {
 	this.ttl01.setLvl('h2');
 	this.ttl01.setText('EIGER Data');
 	
+    this.addNewLine();
+    
+    this.btn01 = this.addWidget(Button, ['refresh'])
+    var callee = this;
+    this.btn01.click( function() {
+        callee.cmp01 = new EIGERSubseqCmdPrompt ( callee.ui.body, 0, 'EHC', 'EIGER Command Handler', callee.eUi, {'success' : [function() {}, callee, []],'error' : [function() {}, this, []]} );
+        callee.cmp01.setCloseDone(true);
+        callee.cmd01 = callee.cmp01.addCmdLog();
+        callee.cmd01.addCmd(callee.eUi.e.filewriter.files, ['GET', '']);
+        callee.cmd01.setCmdHeight('35px');
+        callee.cmd01.exec();
+    });
+    
 	this.addNewLine();
 	
 	this.lgh01 = this.addWidget(EIGERDataLogger, [this.eUi]);
@@ -2450,7 +2549,7 @@ EIGERLog.prototype = {
         this.iInst = window.setTimeout( function() {
             callee.disableLog.apply(callee,[]);
         }, 60000);
-        this.lbl01.getJElement().html('Please be aware that logging will automatically be disabled<br> after 60 seconds for performance consideratons.');
+        this.lbl01.getJElement().html('Please be aware that logging will automatically be disabled<br>after 60 seconds for performance consideratons.');
     },
     disableLog : function () {
         this.chk01.setValue(false);
@@ -2891,7 +2990,11 @@ EIGERCustomCmdPrompt.prototype = {
     },
     getDataType : function (key) {
         try { 
-            var dataType = key.value_type.value;
+            if (key.name === 'flatfield' || key.name === 'pixel_mask') {
+                var dataType = 'file';
+            } else {
+                var dataType = key.value_type.value;
+            }
         } catch(err) {
             if (key.subdomain.index === 'command') {
                 if (key.index === 'trigger') {
@@ -2919,16 +3022,17 @@ EIGERCustomCmdPrompt.prototype = {
                     this.val01.setTitle('Value');
                     this.val01.setValue(key.value.value);
                     break;
+                case 'int':
                 case 'uint':
                 case 'float':
                 case 'string':
-                    console.log(key)
-                    if (key.name === 'flatfield' || key.name === 'pixel_mask') {
-                        console.log('Upload tiff...')
-                    }
                     this.val01 = this.vaa01.addWidget(Input,[]);
                     this.val01.setTitle('Value');
                     this.val01.setValue(key.value.value);
+                    break;
+                case 'file':
+                    this.val01 = this.vaa01.addWidget(FileInput,[])
+                    this.val01.setTitle('Select file to upload...');
                     break;
                 default:
                     break;
@@ -2947,6 +3051,7 @@ EIGERCustomCmdPrompt.prototype = {
             case 'bool':
                 var value = this.val01.getValue();
                 break;
+            case 'int':
             case 'uint':
                 var value = filterInt(this.val01.getValue());
                 if (isNaN(value)) {
@@ -2958,7 +3063,10 @@ EIGERCustomCmdPrompt.prototype = {
                 if (isNaN(value)) {
                     throw sprintf('Failed to cast \'%s\' to %s...', this.val01.getValue(), dataType);
                 }
-                break
+                break;
+            case 'file':
+                var value = this.val01.getFile();
+                break;
             default:
                 var value = this.val01.getValue();
         }
@@ -2982,7 +3090,6 @@ EIGERCustomCmdPrompt.prototype = {
         this.sel04.empty();
         if (this.eUi.e[this.sel02.getValue()][this.sel03.getValue()] instanceof EIGERSubDomain) {
             this.addOptions(this.sel04, this.eUi.e[this.sel02.getValue()][this.sel03.getValue()].children);   
-            console.log(this.eUi.e[this.sel02.getValue()][this.sel03.getValue()].children)
             this.sel04.setDisabled(false);
         } else if (this.eUi.e[this.sel02.getValue()][this.sel03.getValue()] instanceof EIGERSpecialKey) {
             this.enableMode(this.eUi.e[this.sel02.getValue()][this.sel03.getValue()].access_mode.value);
@@ -3065,12 +3172,15 @@ EIGERCustomCmdPrompt.prototype = {
         var execStyle = (this.chk01.getValue()) ? this.cmd01.EXEC_CLICK : this.cmd01.EXEC_IMMED;
         switch(this.sel01.getValue()) {
             case 'GET':
-                this.addQObj(key.updateKey(true), execStyle);
+                if (this.getDataType(key) === 'file') {
+                    this.addQObj(key.downloadFile(true), execStyle)
+                } else {
+                    this.addQObj(key.updateKey(true), execStyle);
+                }
                 break;
             case 'PUT':
                 try { 
-                    var value = this.getValue(key);
-                    console.log(this.getDataType(key));
+                    var value = this.getValue(key);       
                     if (this.getDataType(key) === 'file') {
                         this.addQObj(key.setUploadFile(value,true), execStyle);
                     } else {
@@ -3270,10 +3380,10 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     });
     
     this.pre01 = this.addWidget(Pre,[]);
-    this.pre01.getJElement().css('overflow-y','scroll');
+    //this.pre01.getJElement().css('overflow-y','scroll');
     this.pre01.setWidth('700px');
-    this.pre01.getJElement().css('max-height','200px');
-    this.pre01.setVisibility(false);
+    //this.pre01.getJElement().css('max-height','200px');
+    //this.pre01.setVisibility(false);
     this.pre01.addClickListener(this.pre01.getJElement(),function () {});
     
     this.tbl02 = this.addWidget(Table,[]);
@@ -3464,8 +3574,8 @@ EIGERCmdInformation.prototype = {
                 
                 this.tbr02.tfd04.setText(this.qInstance.request.status);
                 this.tbr03.tfd04.setText(this.qInstance.request.statusText);
-                this.tbr08.tfd04.lbl01.setText(this.qInstance.request.responseText);
-                this.tbr08.tfd04.setTitle(this.qInstance.request.responseText);
+                this.tbr08.tfd04.lbl01.setText(JSON.stringify(this.qInstance.request.response));
+                this.tbr08.tfd04.setTitle(JSON.stringify(this.qInstance.request.response));
                 
                 this.tbr10.tfd02.setText(msToISO(this.qInstance.startTime));
                 this.tbr10.tfd04.setText(msToISO(this.qInstance.endTime));
@@ -3480,8 +3590,8 @@ EIGERCmdInformation.prototype = {
                     this.tbr02.tfd04.setText(this.qInstance.request.status);
                     this.tbr03.tfd04.setText(this.qInstance.request.statusText);
                     this.tbr03.tfd04.setTitle(this.qInstance.request.statusText);
-                    this.tbr08.tfd04.lbl01.setText(this.qInstance.request.responseText);
-                    this.tbr08.tfd04.setTitle(this.qInstance.request.responseText);
+                    this.tbr08.tfd04.lbl01.setText(JSON.stringify(this.qInstance.request.response));
+                    this.tbr08.tfd04.setTitle(JSON.stringify(this.qInstance.request.response));
                 } catch (err) {
                     this.tbr02.tfd04.setText('n/a');
                     this.tbr03.tfd04.setText('error');
@@ -3736,7 +3846,12 @@ EIGERSubseqCmdHandler.prototype = {
 				this.rows[id].tfd03.ind01.ok();
                 if (qInstance.method === 'GET') {
                     try {
-                        this.rows[id].tfd04.setText(qInstance.response.value);
+                        if (qInstance.acceptType === 'application/tiff') {
+                            this.rows[id].btn01 = this.rows[id].tfd04.addWidget(Button, ['download']);
+                            this.rows[id].btn01.click(qInstance.download, qInstance);
+                        } else {
+                            this.rows[id].tfd04.setText(qInstance.request.response.value);
+                        }
                     } catch (err) {}
                 }
 				if ( qListItem['endingCommand'] === this.ENDING_COMMAND ) {
@@ -4044,7 +4159,15 @@ EIGERUiHandler.prototype = {
 		this.cmd01 = '';
 		this.e.connectionStateID = 2;
 		var acqView = this.getView('Acquire');
-		this.switchView(acqView);
+		
+        //Remove old click listeners
+        this.ui.cset.inp01.setDisabled(true);
+        this.ui.cset.inp02.setDisabled(true);
+        this.ui.cset.frm01.clearSubmit();
+        this.ui.cset.btn01.setText('disconnect');
+        this.ui.cset.btn01.click(function() {window.location.reload(),[]});
+        
+        this.switchView(acqView);
         this.ui.acq.connect();
 		this.ui.acq.disableAdvMode();
 		this.ui.acq.chk04.setDisabled(false);
@@ -4280,7 +4403,7 @@ EIGERUiConnector.prototype = {
     }
 };
 
-var clientVersion = '1.3.0T4';
+var clientVersion = '1.4.0T1';
 var uniId = 0;
 
 $( document ).ready(function() {
@@ -4440,6 +4563,9 @@ $( document ).ready(function() {
     pa05.leave = function () {
         p05_log01.disableLog();
     }
+    pa04.activate = function () {
+        eUi.e.filewriter.files.update();
+    }   
 
 	// Main Area Footer
 	
