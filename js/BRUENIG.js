@@ -1577,7 +1577,11 @@ EIGERHandler.prototype = {
         qInstance.request.addEventListener("progress", function(e){});
         qInstance.request.addEventListener("load", 
             function(e) { 
-                callee.sucess.apply(callee, [qInstance]);
+                if (qInstance.request.status >= 200 && qInstance.request.status < 300) {
+                    callee.sucess.apply(callee, [qInstance]);
+                } else {
+                    callee.error.apply(callee, [qInstance]);
+                }
             });    
         qInstance.request.addEventListener("error", 
             function(e) { 
@@ -4403,7 +4407,7 @@ EIGERUiConnector.prototype = {
     }
 };
 
-var clientVersion = '1.4.0T1';
+var clientVersion = '1.4.0T2';
 var uniId = 0;
 
 $( document ).ready(function() {
@@ -4574,3 +4578,4 @@ $( document ).ready(function() {
 	ma01_lbl01.getJElement().addClass('main-footer')
 	ma01_lbl01.setText(sprintf('EIGER Quick Start Client, %s, Copyright: DECTRIS Ltd., Author: Andy Moesch',clientVersion))
 });
+

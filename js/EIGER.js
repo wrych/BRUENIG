@@ -318,7 +318,11 @@ EIGERHandler.prototype = {
         qInstance.request.addEventListener("progress", function(e){});
         qInstance.request.addEventListener("load", 
             function(e) { 
-                callee.sucess.apply(callee, [qInstance]);
+                if (qInstance.request.status >= 200 && qInstance.request.status < 300) {
+                    callee.sucess.apply(callee, [qInstance]);
+                } else {
+                    callee.error.apply(callee, [qInstance]);
+                }
             });    
         qInstance.request.addEventListener("error", 
             function(e) { 
