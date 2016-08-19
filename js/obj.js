@@ -627,6 +627,42 @@ Title.prototype = {
 	}
 }
 
+function SVGImage(parent, id, name, description) {
+	ContainerArea.call(this, parent, id, name, description);
+	this.type = 'Image'
+	this.image = new _SVGImage(this, this.id, this.name, this.description)
+}
+
+SVGImage.prototype = {
+	setWidth : function(args) {
+		this.image.setWidth.apply(this.image,arguments)
+	},
+    setHeight : function(args) {
+		this.image.setHeight.apply(this.image,arguments)
+	},
+    getSVG : function() {
+        return this.image.svgImage;
+    }
+}
+
+function _SVGImage(parent, id, name, description) {
+	WidgetArea.call(this, parent, id, name, description);
+	this.type = '_Image'
+	this.jElement.addClass('image');
+    this.svgImage = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    this.jImage = $(this.svgImage).appendTo(this.getJElement());
+	this.jImage.addClass('imageDisp');
+}
+
+_SVGImage.prototype = {
+	setWidth : function(value) {
+        this.svgImage.setAttribute('width', value);
+    },
+	setHeight : function(value) {
+        this.svgImage.setAttribute('height', value);
+    },
+}
+
 function Image(parent, id, name, description) {
 	ContainerArea.call(this, parent, id, name, description);
 	this.type = 'Image'
@@ -936,6 +972,7 @@ extend(Area, Overlay);
 extend(WidgetArea, _Button);
 extend(WidgetArea, _Label);
 extend(WidgetArea, _Title);
+extend(WidgetArea, _SVGImage);
 extend(WidgetArea, _Image);
 extend(WidgetArea, _StatusIndicator);
 
@@ -944,6 +981,7 @@ extend(ContainerArea, Label);
 extend(ContainerArea, CheckBox);
 extend(ContainerArea, Extendable);
 extend(ContainerArea, Title);
+extend(ContainerArea, SVGImage);
 extend(ContainerArea, Image);
 extend(ContainerArea, Pre);
 extend(ContainerArea, Input);

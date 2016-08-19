@@ -1,3 +1,37 @@
+function EIGERStatus(parent, id, name, description, ui, eUi) {
+	ContainerArea.call(this, parent, id, name, description);
+	this.ui = ui;
+	this.ui.cset = this;
+	this.eUi = eUi;
+	this.type = 'StatusWidget';
+	this.ttl01 = this.addWidget(Title,[]);
+	this.ttl01.setLvl('h2');
+	this.ttl01.setText('EIGER Module Status');
+	
+	this.addNewLine();
+	
+    this.det = this.addWidget(SVGImage, []);
+    this.det.setHeight(600);
+    this.det.setWidth(800);
+    
+    this.btn01 = this.addWidget(Button,['show']);
+    
+	this.btn01.click(this.test, this);
+    
+    this.module1 = new EIGERSVGModule(this.det, 0, 'Module_00', 'Module 1234', 000, 000, .05);
+    this.module2 = new EIGERSVGModule(this.det, 0, 'Module_00', 'Module 1234', 000, 130, .05);
+    
+    this.module3 = new EIGERSVGModule(this.det, 0, 'Module_00', 'Module 1234', 242, 14, .05);
+    this.module4 = new EIGERSVGModule(this.det, 0, 'Module_00', 'Module 1234', 242, 144, .05);
+}
+
+EIGERStatus.prototype = {
+    test : function () {
+        console.log(this.module1);
+        this.module1.rocs[0].setSVGPathsAttr('stroke', '#00ff00');  
+    }
+};
+
 // Connection Settings Widget
 function EIGERConSet(parent, id, name, description, ui, eUi) {
 	ContainerArea.call(this, parent, id, name, description);
@@ -620,6 +654,7 @@ EIGERHelp.prototype = {
 
 };
 
+extend(ContainerArea, EIGERStatus);
 extend(ContainerArea, EIGERConSet);
 extend(ContainerArea, EIGERAcqSet);
 extend(ContainerArea, EIGERAcq);
