@@ -1,4 +1,4 @@
-var clientVersion = '1.4.0T2';
+var clientVersion = '1.4.0T3';
 var uniId = 0;
 
 $( document ).ready(function() {
@@ -150,7 +150,7 @@ $( document ).ready(function() {
 	var p02_set01 = pa02.addWidget(EIGERAcqSet,[ui, eUi]);
 	var p03_acq01 = pa03.addWidget(EIGERAcq, [ui, eUi]);
 	var p04_dat01 = pa04.addWidget(EIGERData, [ui, eUi]);
-	var p05_hlp01 = pa05.addWidget(EIGERStatus, [ui, eUi]);
+	var p05_sta01 = pa05.addWidget(EIGERStatus, [ui, eUi]);
 	var p06_log01 = pa06.addWidget(EIGERLog, [ui, eUi]);
 	var p07_hlp01 = pa07.addWidget(EIGERHelp, [ui, eUi]);
     

@@ -1,7 +1,7 @@
 function EIGERStatus(parent, id, name, description, ui, eUi) {
 	ContainerArea.call(this, parent, id, name, description);
 	this.ui = ui;
-	this.ui.cset = this;
+	this.ui.sset = this;
 	this.eUi = eUi;
 	this.type = 'StatusWidget';
 	this.ttl01 = this.addWidget(Title,[]);
@@ -310,6 +310,7 @@ function EIGERConvenienceFunctions (ui, eUi, action) {
             this.cmd01.exec();
             break;
 		case 'checkstate' :
+			this.cmp01.setTitle('Checking status and error keys of the detector...')
 			if (!this.eUi.e.isVersionOrHigher(1,6,0)) {
 				if (confirm('The detector will have to be reinitialized (JAUN Version 1.5.0 and older) in order to get the current state. Would you like to initialize the detector now?'))
 				{
@@ -321,11 +322,22 @@ function EIGERConvenienceFunctions (ui, eUi, action) {
 				this.cmd01.addCmd(this.eUi.e.detector.command.status_update, ['Put', '', true])
 			}
 			this.cmd01.addCmd(this.eUi.e.detector.status.state, ['GET', '', true]);
+			this.cmd01.addCmd(this.eUi.e.detector.status.error, ['Get', '', true]);
 			this.cmd01.addCmd(this.eUi.e.filewriter.status.state, ['GET', '', true]);
-            var cmdHeight = 3;
-            if (this.eUi.e.monitor) {this.cmd01.addCmd(this.eUi.e.monitor.status.state, ['GET', '', true]); cmdHeight++;}
-            if (this.eUi.e.stream) {this.cmd01.addCmd(this.eUi.e.stream.status.state, ['GET', '', true]); cmdHeight++;}
-            this.cmd01.setCmdHeight(sprintf('%spx', cmdHeight*30));
+			this.cmd01.addCmd(this.eUi.e.filewriter.status.error, ['GET', '', true]);
+            var cmdHeight = 4;
+            if (this.eUi.e.monitor) 
+			{
+				this.cmd01.addCmd(this.eUi.e.monitor.status.state, ['GET', '', true]); 
+				this.cmd01.addCmd(this.eUi.e.monitor.status.error, ['GET', '', true]);
+				cmdHeight += 2;
+			}
+            if (this.eUi.e.stream) {
+				this.cmd01.addCmd(this.eUi.e.stream.status.state, ['GET', '', true]); 
+				this.cmd01.addCmd(this.eUi.e.monitor.status.error, ['GET', '', true]);
+				cmdHeight += 2;
+			}
+            this.cmd01.setCmdHeight(sprintf('%spx', cmdHeight*32));
             this.cmd01.exec();
             break;
     }
@@ -905,11 +917,29 @@ function EIGERCustomCmdPrompt(parent, id, name, description, eUi) {
 	this.addNewLine();
     
     var callee = this;
-    
-    this.frm01 = this.addWidget(Form, []);
-    this.frm01.submit(this.submit, this);
+	
+	this.ext01 = this.addWidget(Extendable,[]);
+    this.ext01.setTitle('Add or Append to Queue from File');
 
-    this.sel01 = this.frm01.addWidget(Select,[]);
+	this.frm01 = this.ext01.addContent(Form, []);
+    this.frm01.submit(this.append, this);
+	
+	this.fin01 = this.frm01.addWidget(FileInput,[])
+    this.fin01.setTitle('Select file to upload...');
+	
+	this.btn01 = this.frm01.addWidget(SubmitButton, ['Append to Queue']);
+	
+    this.addNewLine();
+    
+	this.ext02 = this.addWidget(Extendable,[]);
+    this.ext02.setTitle('Append to Queue manually');
+	
+	this.ext02.toggle()
+	
+    this.frm02 = this.ext02.addContent(Form, []);
+    this.frm02.submit(this.submit, this);	
+	
+    this.sel01 = this.frm02.addWidget(Select,[]);
     this.sel01.setTitle('Method');
     this.sel01.setWidth('80px');
     this.sel01.addOptions(['GET','PUT','DELETE']);
@@ -917,7 +947,7 @@ function EIGERCustomCmdPrompt(parent, id, name, description, eUi) {
         callee.changeMethod.apply(callee, [event]);
     });
     
-    this.sel02 = this.frm01.addWidget(Select,[]);
+    this.sel02 = this.frm02.addWidget(Select,[]);
     this.sel02.setTitle('Module');
     this.sel02.setWidth('80px');
     this.addOptions(this.sel02,this.eUi.e.children);
@@ -925,7 +955,7 @@ function EIGERCustomCmdPrompt(parent, id, name, description, eUi) {
         callee.changeModule.apply(callee, [event]);
     });
     
-    this.sel03 = this.frm01.addWidget(Select,[]);
+    this.sel03 = this.frm02.addWidget(Select,[]);
     this.sel03.setTitle('Task');
     this.sel03.setWidth('87px');
     this.sel03.jInput.change(function (event) {
@@ -933,7 +963,7 @@ function EIGERCustomCmdPrompt(parent, id, name, description, eUi) {
     });
     this.sel03.setDisabled(true);
     
-    this.sel04 = this.frm01.addWidget(Select,[]);
+    this.sel04 = this.frm02.addWidget(Select,[]);
     this.sel04.setTitle('Key');
     this.sel04.setWidth('247px');
     this.sel04.jInput.change(function (event) {
@@ -941,21 +971,21 @@ function EIGERCustomCmdPrompt(parent, id, name, description, eUi) {
     });
     this.sel04.setDisabled(true);
     
-    this.vaa01 = this.frm01.addWidget(ContainerArea,[]);
+    this.vaa01 = this.frm02.addWidget(ContainerArea,[]);
     this.vaa01.setWidth('150px');
     
-    this.frm01.addNewLine();
+    this.frm02.addNewLine();
     
-    this.lbl01 = this.frm01.addWidget(Label,[]);
+    this.lbl01 = this.frm02.addWidget(Label,[]);
     this.lbl01.setWidth('500px');
     this.lbl01.setText(' ');
     
-    this.chk01 = this.frm01.addWidget(CheckBox, []);
+    this.chk01 = this.frm02.addWidget(CheckBox, []);
     this.chk01.setWidth('150px');
     this.chk01.setTitle('Execute manually');
     
-    this.btn01 = this.frm01.addWidget(SubmitButton, ['Add To Queue'])
-    this.btn01.setDisabled(true);
+    this.btn02 = this.frm02.addWidget(SubmitButton, ['Add To Queue'])
+    this.btn02.setDisabled(true);
 	
     this.addNewLine();
 	
@@ -970,15 +1000,19 @@ function EIGERCustomCmdPrompt(parent, id, name, description, eUi) {
     
     this.chk02 = this.addWidget(CheckBox, []);
     this.chk02.setTitle('Close when finished');
-    this.chk02.jInput.change( function () { callee.closeDone = callee.chk02.getValue() } )
+    this.chk02.jInput.change( function () { callee.closeDone = callee.chk02.getValue() } );
     
     
-    this.btn02 = this.addWidget(Button, ['Execute']);
-    this.btn02.click(this.startQ, this);
-    this.btn02.setDisabled(true);
+    this.btn03 = this.addWidget(Button, ['Execute']);
+    this.btn03.click(this.startQ, this);
+    this.btn03.setDisabled(true);
+	
+	this.btn04 = this.addWidget(Button, ['Save Queue to file']);
+    this.btn04.click(this.save, this);
+    this.btn04.setDisabled(true);
 
-    this.btn03 = this.addWidget(Button, ['Close']);
-    this.btn03.click(this.close, this);
+    this.btn05 = this.addWidget(Button, ['Close']);
+    this.btn05.click(this.close, this);
 }
 
 EIGERCustomCmdPrompt.prototype = {
@@ -998,24 +1032,17 @@ EIGERCustomCmdPrompt.prototype = {
         widget.addOptions(argList);
         widget.setValue('');
     },
-    getDataType : function (key) {
-        try { 
-            if (key.name === 'flatfield' || key.name === 'pixel_mask') {
-                var dataType = 'file';
-            } else {
-                var dataType = key.value_type.value;
-            }
-        } catch(err) {
-            if (key.subdomain.index === 'command') {
-                if (key.index === 'trigger') {
-                    var dataType = 'float';
-                } else {
-                    var dataType = 'command';
-                }
-            }
-        };
-        return dataType;
-    },
+	append : function () {
+		var reader = new FileReader();
+		var callee = this;
+		reader.onload = function(progressEvent){
+			// Entire file
+			callee.cmd01.importFromStr.apply(callee.cmd01,[this.result]);
+		};
+		reader.readAsText(this.fin01.getFile());
+		this.btn03.setDisabled(false);
+        this.btn04.setDisabled(false);
+	},
     addValueField : function (key) {        
         var dataType = this.getDataType(key);
         try { var allowedValues = key.allowed_values.value; } catch(err) {};
@@ -1085,7 +1112,7 @@ EIGERCustomCmdPrompt.prototype = {
     changeModule : function (event) {
         this.removeValueField();
         this.enableAllModes();
-        this.btn01.setDisabled(true);
+        this.btn02.setDisabled(true);
         this.sel03.empty();
         this.sel03.setDisabled(false);
         this.sel04.empty();
@@ -1095,7 +1122,7 @@ EIGERCustomCmdPrompt.prototype = {
     changeTask : function (event) {
         this.removeValueField();
         this.enableAllModes();
-        this.btn01.setDisabled(true);
+        this.btn02.setDisabled(true);
         this.sel04.setDisabled(true);
         this.sel04.empty();
         if (this.eUi.e[this.sel02.getValue()][this.sel03.getValue()] instanceof EIGERSubDomain) {
@@ -1104,7 +1131,7 @@ EIGERCustomCmdPrompt.prototype = {
         } else if (this.eUi.e[this.sel02.getValue()][this.sel03.getValue()] instanceof EIGERSpecialKey) {
             this.enableMode(this.eUi.e[this.sel02.getValue()][this.sel03.getValue()].access_mode.value);
             this.sel04.setDisabled(true);
-            this.btn01.setDisabled(false);
+            this.btn02.setDisabled(false);
         }
     },
     changeKey : function (event) {
@@ -1121,7 +1148,7 @@ EIGERCustomCmdPrompt.prototype = {
                     this.removeValueField();
                     break;
             }
-            this.btn01.setDisabled(false);
+            this.btn02.setDisabled(false);
         } catch (err) {
             console.log(err);
         }
@@ -1170,55 +1197,48 @@ EIGERCustomCmdPrompt.prototype = {
             }
         });
     },
+	save : function () {
+		var data = new Blob([this.cmd01.exportAsStr()], {type: 'application/json'});
+		saveFile(sprintf('BRUENIG_%s.json',new Date().toISOString().slice(0, 10)), data)
+	},
     startQ : function () {
-        this.btn02.setVisibility(false);
-        this.frm01.setVisibility(false);
+        this.btn03.setVisibility(false);
+        this.ext01.setVisibility(false);
+        this.ext02.setVisibility(false);
         this.cmd01.btn01.setDisabled(false);
         this.cmd01.exec();
     },
     submit : function (args) {
-        var subdomain = this.eUi.e[this.sel02.getValue()][this.sel03.getValue()];
-        var key = (subdomain instanceof EIGERSpecialKey) ? subdomain : subdomain[this.sel04.getValue()];
-        var execStyle = (this.chk01.getValue()) ? this.cmd01.EXEC_CLICK : this.cmd01.EXEC_IMMED;
-        switch(this.sel01.getValue()) {
-            case 'GET':
-                if (this.getDataType(key) === 'file') {
-                    this.addQObj(key.downloadFile(true), execStyle)
-                } else {
-                    this.addQObj(key.updateKey(true), execStyle);
-                }
-                break;
-            case 'PUT':
-                try { 
-                    var value = this.getValue(key);       
-                    if (this.getDataType(key) === 'file') {
-                        this.addQObj(key.setUploadFile(value,true), execStyle);
-                    } else {
-                        this.addQObj(key.setValue(value,true), execStyle);
-                    }
-                } catch (err) {
-                    alert(sprintf('Error in parsing value.\n\n%s', err));
-                }
-                break;
-            default:
-                break;    
-        }
-        this.btn02.setDisabled(false);
+		var subdomain = this.eUi.e[this.sel02.getValue()][this.sel03.getValue()];
+		var key = (subdomain instanceof EIGERSpecialKey) ? subdomain : subdomain[this.sel04.getValue()];
+		if (this.sel01.getValue() === 'PUT') {
+			this.addQObjByNames(this.sel02.getValue(), this.sel03.getValue(), this.sel04.getValue(), this.sel01.getValue(),  this.getValue(key), this.chk01.getValue());
+        } else {
+			this.addQObjByNames(this.sel02.getValue(), this.sel03.getValue(), this.sel04.getValue(), this.sel01.getValue(),  undefined, this.chk01.getValue());	
+		}
+		this.btn03.setDisabled(false);
+        this.btn04.setDisabled(false);
     },
 	addCmd : function (args) {
-		this.cmd01.addCmd.apply(this.cmd01, arguments);
+		return(this.cmd01.addCmd.apply(this.cmd01, arguments));
 	},
 	addQObj : function (args) {
-		this.cmd01.addQObj.apply(this.cmd01, arguments);
+		return(this.cmd01.addQObj.apply(this.cmd01, arguments));
+	},
+	addQObjByNames : function (args) {
+		return(this.cmd01.addQObjByNames.apply(this.cmd01, arguments));
 	},
 	addMCmd : function (args) {
-		this.cmd01.addMCmd.apply(this.cmd01, arguments);
+		return(this.cmd01.addMCmd.apply(this.cmd01, arguments));
+	},
+	getDataType : function (args) {
+		return(this.cmd01.getDataType.apply(this.cmd01, arguments));
 	},
 	setTitle : function (args) {
-		this.tlt01.setText.apply(this.tlt01,arguments);
+		return(this.tlt01.setText.apply(this.tlt01,arguments));
 	},
 	setCmdHeight : function (args) {
-		this.cmd01.setCmdHeight.apply(this.cmd01,arguments);
+		return(this.cmd01.setCmdHeight.apply(this.cmd01,arguments));
 	}
 };
 
@@ -1623,7 +1643,7 @@ EIGERCmdInformation.prototype = {
         }
     },
 	setTitle : function (args) {
-		this.tlt01.setText.apply(this.tlt01,arguments);
+		return(this.tlt01.setText.apply(this.tlt01,arguments));
 	}
 };
 
@@ -1668,25 +1688,25 @@ EIGERSubseqCmdPrompt.prototype = {
         return tmpLog;
     },
 	addCmd : function (args) {
-		this.cmd01.addCmd.apply(this.cmd01, arguments);
+		return(this.cmd01.addCmd.apply(this.cmd01, arguments));
 	},
 	addQObj : function (args) {
-		this.cmd01.addQObj.apply(this.cmd01, arguments);
+		return(this.cmd01.addQObj.apply(this.cmd01, arguments));
 	},
 	addMCmd : function (args) {
-		this.cmd01.addMCmd.apply(this.cmd01, arguments);
+		return(this.cmd01.addMCmd.apply(this.cmd01, arguments));
 	},
 	exec : function (args) {
-		this.cmd01.exec.apply(this.cmd01, arguments);
+		return(this.cmd01.exec.apply(this.cmd01, arguments));
 	},
     setCloseDone : function (value) {
         this.closeDone = value;
     } ,
 	setTitle : function (args) {
-		this.tlt01.setText.apply(this.tlt01,arguments);
+		return(this.tlt01.setText.apply(this.tlt01,arguments));
 	},
 	setCmdHeight : function (args) {
-		this.cmd01.setCmdHeight.apply(this.cmd01,arguments);
+		return(this.cmd01.setCmdHeight.apply(this.cmd01,arguments));
 	},
     _step : function(data, cmdLogId, state) {
         if (this.cmdLogCallback[cmdLogId] !== undefined) {
@@ -1722,7 +1742,7 @@ function EIGERSubseqCmdHandler (parent, id, name, description, eUi, callbackList
 	this.statusText = '';
     
     this.tblContainer = this.addWidget(BlockArea, parent, id, name, description)
-	this.tblContainer.jElement.css('overflow-y','scroll');
+	//this.tblContainer.jElement.css('overflow-y','scroll');
 	this.tblContainer.jElement.css('overflow-x','hidden');
     
     this.setHeight('400px');
@@ -1777,6 +1797,70 @@ EIGERSubseqCmdHandler.prototype = {
 			this.end();
         }
 	},
+	exportAsStr : function () {
+		var exportQList = {};
+		this.listOfQueues.forEach( function (element, index, array)
+        {
+            exportQList[index] = {
+				"endingCommand" : element.endingCommand,
+				"execStyle" : element.execStyle,
+				"acceptType" : element.qObject.acceptType,
+				"data" : element.qObject.data,
+				"method" : element.qObject.method,
+				"mimeType" : element.qObject.mimeType,
+				"processData" : element.qObject.processData,
+				"apiDomain" : element.qObject.instance.domain.name,
+				"apiSubDomain" : element.qObject.instance.subdomain.name,
+				"apiKey" : element.qObject.instance.name
+			};
+        }, this)
+		return JSON.stringify(exportQList);
+	},
+	importFromStr : function (importStr) {
+		var qImportObj = JSON.parse(importStr);
+		for (var index in qImportObj)
+        {
+			obj = qImportObj[index];
+			var value = ''
+			try {
+				value = JSON.parse(obj['data'])['value']
+			} catch (err) {}
+			this.addQObjByNames(obj['apiDomain'],
+								obj['apiSubDomain'],
+								obj['apiKey'],
+								obj['method'],
+								value,
+								obj['execStyle'],
+								obj['endingCommand']);
+		}
+	},
+	addQObjByNames : function (qObjDomain, qObjSubDomain, qObjKey, qObjMethod, qObjValue, qObjExecStyle, qObjEndingCommand) {
+		var subdomain = this.eUi.e[qObjDomain][qObjSubDomain];
+		var key = (subdomain instanceof EIGERSpecialKey) ? subdomain : subdomain[qObjKey];
+		var execStyle = (qObjExecStyle) ? this.EXEC_CLICK : this.EXEC_IMMED;
+		switch(qObjMethod) {
+			case 'GET':
+				if (this.getDataType(key) === 'file') {
+					this.addQObj(key.downloadFile(true), execStyle, qObjEndingCommand)
+				} else {
+					this.addQObj(key.updateKey(true), execStyle, qObjEndingCommand);
+				}
+				break;
+			case 'PUT':
+				try {   
+					if (this.getDataType(key) === 'file') {
+						this.addQObj(key.setUploadFile(qObjValue,true), execStyle, qObjEndingCommand);
+					} else {
+						this.addQObj(key.setValue(qObjValue,true), execStyle, qObjEndingCommand);
+					}
+				} catch (err) {
+					alert(sprintf('Error in parsing value.\n\n%s', err));
+				}
+				break;
+			default:
+				break;    
+		}
+	},
 	exec: function() {
 		var eIter = this.eIter++;
 		if (this.listOfQueues[eIter] === undefined) {
@@ -1809,6 +1893,24 @@ EIGERSubseqCmdHandler.prototype = {
 			}
 		};
 	},
+    getDataType : function (key) {
+        try { 
+            if (key.name === 'flatfield' || key.name === 'pixel_mask') {
+                var dataType = 'file';
+            } else {
+                var dataType = key.value_type.value;
+            }
+        } catch(err) {
+            if (key.subdomain.index === 'command') {
+                if (key.index === 'trigger') {
+                    var dataType = 'float';
+                } else {
+                    var dataType = 'command';
+                }
+            }
+        };
+        return dataType;
+    },
 	end : function() {
         this.btn01.remove();
 		this.eUi.removeQueryStatusListener(this);
@@ -2171,6 +2273,7 @@ EIGERUiHandler.prototype = {
 		var acqView = this.getView('Acquire');
 		
         //Remove old click listeners
+		console.log(this.ui)
         this.ui.cset.inp01.setDisabled(true);
         this.ui.cset.inp02.setDisabled(true);
         this.ui.cset.frm01.clearSubmit();
