@@ -174,6 +174,12 @@ Area.prototype = {
 	getJElement: function(){
 		return this.jElement;
 	},
+	fadeIn : function(duration) {
+		this.jElement.fadeIn(duration)
+	},
+	fadeOut : function(duration) {
+		this.jElement.fadeOut(duration)
+	},
 	addClickListener: function(area, action){
 		var callee = this;
 		$( area ).click( function (event) {
@@ -213,6 +219,10 @@ Area.prototype = {
 				actionOut.apply(callee, [event] );
 			};
 		});
+	},
+	removeHoverListeners: function (area) {
+		$( area ).unbind( "mouseenter" );
+		$( area ).unbind( "mouseleave" );
 	},
 	setWidth : function(value)
 	{
@@ -627,6 +637,42 @@ Title.prototype = {
 	}
 }
 
+function SVGImage(parent, id, name, description) {
+	ContainerArea.call(this, parent, id, name, description);
+	this.type = 'Image'
+	this.image = new _SVGImage(this, this.id, this.name, this.description)
+}
+
+SVGImage.prototype = {
+	setWidth : function(args) {
+		this.image.setWidth.apply(this.image,arguments)
+	},
+    setHeight : function(args) {
+		this.image.setHeight.apply(this.image,arguments)
+	},
+    getSVG : function() {
+        return this.image.svgImage;
+    }
+}
+
+function _SVGImage(parent, id, name, description) {
+	WidgetArea.call(this, parent, id, name, description);
+	this.type = '_Image'
+	this.jElement.addClass('image');
+    this.svgImage = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    this.jImage = $(this.svgImage).appendTo(this.getJElement());
+	this.jImage.addClass('imageDisp');
+}
+
+_SVGImage.prototype = {
+	setWidth : function(value) {
+        this.svgImage.setAttribute('width', value);
+    },
+	setHeight : function(value) {
+        this.svgImage.setAttribute('height', value);
+    },
+}
+
 function Image(parent, id, name, description) {
 	ContainerArea.call(this, parent, id, name, description);
 	this.type = 'Image'
@@ -836,6 +882,8 @@ Button.prototype = {
 	}
 };
 
+
+
 function SubmitButton(parent, id, name, description, text, imagePath) {
 	Button.call(this, parent, id, name, description, text, imagePath);
 	this.setType('submit');
@@ -936,6 +984,7 @@ extend(Area, Overlay);
 extend(WidgetArea, _Button);
 extend(WidgetArea, _Label);
 extend(WidgetArea, _Title);
+extend(WidgetArea, _SVGImage);
 extend(WidgetArea, _Image);
 extend(WidgetArea, _StatusIndicator);
 
@@ -944,6 +993,7 @@ extend(ContainerArea, Label);
 extend(ContainerArea, CheckBox);
 extend(ContainerArea, Extendable);
 extend(ContainerArea, Title);
+extend(ContainerArea, SVGImage);
 extend(ContainerArea, Image);
 extend(ContainerArea, Pre);
 extend(ContainerArea, Input);
@@ -1116,6 +1166,10 @@ function UiHandler(body, area, navArea, resizer){
     
     this.resizer = resizer;
 	
+	this.hiddenElements = [];
+	this.hiddenNavigationHoverArea = null;
+	this.hiddenNavigation = [];
+	
 	this.body = body;
 	this.uiOLInt = 0;
 	this.uiOverlays = {};
@@ -1130,6 +1184,51 @@ function UiHandler(body, area, navArea, resizer){
 }
 
 UiHandler.prototype = {
+	addHiddenHomeNavigation : function(widget) {
+		this.hiddenNavigation.push(widget);
+		widget.setVisibility(false);
+	},	
+	hideHomeNavigation : function() {
+		for (var el in this.hiddenNavigation) {
+			this.hiddenNavigation[el].getJElement().delay(2000).fadeOut(500);
+		}
+	},
+	showHomeNavigation : function() {
+		for (var el in this.hiddenNavigation) {
+			this.hiddenNavigation[el].getJElement().fadeIn(200);
+		}
+	},
+	enableHomeNavigationHover : function(area) {
+		var callee = this;
+		this.hiddenNavigationHoverArea = area;
+		area.addHoverListener(
+			area.getJElement(), 
+			function(event) {
+				callee.showHomeNavigation.apply(callee, []);
+			}, 
+			function(event) {
+				callee.hideHomeNavigation.apply(callee, []);
+			}
+		);
+	},
+	addHiddenHomeWidget : function(widget) {
+		this.hiddenElements.push(widget);
+		widget.setVisibility(false);
+	},
+	hideHiddenHomeWidgets : function() {
+		for (var el in this.hiddenElements) {
+			this.hiddenElements[el].setVisibility(false)
+		}
+	},
+	showHiddenHomeWidgets : function() {
+		for (var el in this.hiddenElements) {
+			this.hiddenElements[el].setVisibility(true)
+		}
+		for (var el in this.hiddenNavigation) {
+			this.hiddenNavigation[el].setVisibility(true)
+		}
+		this.hiddenNavigationHoverArea.removeHoverListeners(this.hiddenNavigationHoverArea.getJElement());
+	},
 	showOverlay : function() {
 		var id = this.uiOLInt++;
 		var tmpOL = new Overlay(this.body, id, 'Overlay', 'Overlay');
@@ -1256,776 +1355,223 @@ UiConnector.prototype = {
 		this.iInst = this.iFunction();
 	}
 };
+var clientVersion = '1.4.0T3';
+var uniId = 0;
 
-var defaultVersion = '1.0.0';
-var domains = ['detector','filewriter'];
-var subdomains = ['config', 'status', 'command'];
-var detkeys = {'config':["auto_summation", "beam_center_x", "beam_center_y", "countrate_correction_applied", "countrate_correction_bunch_mode", "count_time", "data_collection_date", "detector_number", "efficiency_correction_applied", "element", "flatfield_correction_applied", "frame_time", "nimages", "number_of_excluded_pixels", "photon_energy", "pixel_mask_applied", "sensor_material", "sensor_thickness", "software_version", "threshold_energy", "trigger_mode", "virtual_pixel_correction_applied", "ntrigger"]
-				, 'status' : ["state"]
-				, 'command' : ['initialize','arm','disarm','trigger','cancel','abort']};
-var fwrkeys = {'config': ["transfer_mode", "image_nr_start", "mode", "nimages_per_file", "name_pattern", "compression_enabled"], 
-				'status': ["state", "error", "time", "buffer_free"], 
-				'command': ["clear"]};
-var monkeys = {'config': [], 
-				'status': [], 
-				'command': []};
-var stmkeys = {'config': [], 
-				'status': [], 
-				'command': []};
+$( document ).ready(function() {
+	var body = new BodyArea(uniId++);
+	
+	var resizer = new AreaResizer();
+		
+	var headerBannerArea = new PlacementArea(body, uniId++, 'xx', 'xx'); 
+	headerBannerArea.setWidth('900px')
+	headerBannerArea.setHeight('223px')
+	headerBannerArea.setOffset({top:'10', left:'10'})
+	
+	resizer.resizeOffset(headerBannerArea.setOffset, headerBannerArea, 'left', ['mid',-457], -7)
+	
+	var headerLogoArea = new PlacementArea(body, uniId++, 'xx', 'xx'); 
+	headerLogoArea.setWidth('173px')
+	headerLogoArea.setHeight('40px')
+	headerLogoArea.setOffset({top:'3', left:'30'})
 
-var specialKeys = [{'domain' : 'detector', 'subdomain' : 'version', 'versionInURI' : false},
-                    {'domain' : 'filewriter', 'subdomain' : 'version', 'versionInURI' : false},
-					{'domain' : 'filewriter', 'subdomain' : 'files', 'versionInURI' : true}];
-				
-var keys = {};
-keys['detector'] = detkeys; 
-keys['filewriter'] = fwrkeys;
-keys['monitor'] = monkeys;
-keys['stream'] = stmkeys;
+	resizer.resizeOffset(headerLogoArea.setOffset, headerLogoArea, 'left', ['mid',-437], 13)
+	
+	var headerClaimArea = new PlacementArea(body, uniId++, 'xx', 'xx'); 
+	headerClaimArea.setWidth('440px')
+	headerClaimArea.setHeight('40px')
+	headerClaimArea.setOffset({top:'3', left:'470'})
 
+	resizer.resizeOffset(headerClaimArea.setOffset, headerClaimArea, 'left', ['mid',3], 453)
+	
+	var headerArea = new PlacementArea(body, uniId++, 'xx', 'xx'); 
+	headerArea.setWidth('900px')
+	headerArea.setHeight('270px')
+	headerArea.setOffset({top:'0', left:'18'})
+	headerArea.jElement.addClass('header-area');
 
-                    
-
-var excludedKeys = ['clear', 'pixel_mask', 'flatfield'];
-
-function inExcludedKeys(key) {
-    for (var index in excludedKeys) {
-        if (excludedKeys[index] === key) { return true; };
+	resizer.resizeOffset(headerArea.setOffset, headerArea, 'left', ['mid',-449], 1)
+	
+	var statusArea = new PlacementArea(body, uniId++, 'xx', 'xx'); 
+	statusArea.setWidth('130px');
+	statusArea.setHeight('50px');
+	statusArea.setOffset({top:'205', left:'780'});
+	
+	resizer.resizeOffset(statusArea.setOffset, statusArea, 'left', ['mid',317], 767)
+	
+	var navigationArea = new PlacementArea(body, uniId++, 'xx', 'xx'); 
+	navigationArea.setWidth('900px')
+	navigationArea.setHeight('30px')
+	navigationArea.setOffset({top:'235', left:'25'})
+	
+	resizer.resizeOffset(navigationArea.setOffset, navigationArea, 'left', ['mid',-442], 8)
+	
+	var footerArea01 = new PlacementArea(body, uniId++, 'xx', 'xx'); 
+	footerArea01.setWidth('300px')
+	footerArea01.setHeight('100px')
+	footerArea01.setOffset({top:'600', left:'600'})
+	
+	resizer.resizeOffset(footerArea01.setOffset, footerArea01, 'left', ['mid',133], 583)
+	resizer.resizeOffset(footerArea01.setOffset, footerArea01, 'top', ['abs',-100], 390)
+	
+	var footerArea02 = new PlacementArea(body, uniId++, 'xx', 'xx'); 
+	footerArea02.setWidth('295px')
+	footerArea02.setHeight('7px')
+	footerArea02.setOffset({top:'800', left:'605'})
+	footerArea02.getJElement().addClass('dectris-background');
+	
+	resizer.resizeOffset(footerArea02.setOffset, footerArea02, 'left', ['mid',138], 588)
+	resizer.resizeOffset(footerArea02.setOffset, footerArea02, 'top', ['abs',-7], 390)
+	
+	var mainArea = new PlacementArea(body, uniId++, 'xx', 'xx'); 
+	mainArea.jElement.addClass('main-area');
+	mainArea.setWidth('900px')
+	mainArea.setOffset({top:'290', left:'18'})
+	
+	resizer.resizeOffset(mainArea.setOffset, mainArea, 'left', ['mid',-449], 1)
+	
+	// Trigger Resizer to position elements
+	resizer.trigger()
+	
+	// Header, Logo and Title
+	var he01 = new BlockArea(headerBannerArea, uniId++, 'xx', 'xx')
+	
+	var he01_img01 = he01.addWidget(Image,[])
+	he01_img01.setSrc('im/Banner_BRUENIG_WEBCLIENT.jpg')
+	he01_img01.setWidth('900px');	
+	
+	var he02 = new BlockArea(headerLogoArea, uniId++, 'xx', 'xx')
+	
+	var he02_img01 = he02.addWidget(Image,[])
+	he02_img01.setSrc('im/dectris_logo_1x.jpg')
+	he02_img01.setWidth('173px');
+	
+	var he03 = new BlockArea(headerClaimArea, uniId++, 'xx', 'xx')
+	
+	var he03_img01 = he03.addWidget(Image,[])
+	he03_img01.setSrc('im/dectris_claim.png')
+	he03_img01.setWidth('440px');
+	
+	// footer, Logo and Address
+	var fo01 = new BlockArea(footerArea01, uniId++, 'xx', 'xx')
+	
+	var fo01_lbl01 = fo01.addWidget(Label,[])
+	fo01_lbl01.getJElement().addClass('dectris');
+	fo01_lbl01.getJElement().html('<b>DECTRIS Ltd.</b><br>5400 Baden<br>Switzerland<br><b>www.dectris.com<b>');
+	
+	// Status Header
+	var st01 = new BlockArea(statusArea, uniId++, 'xx', 'xx');
+	
+	// UI Handler
+	var ui = new UiHandler(body, mainArea, nv01, resizer);
+	var eUi = new EIGERUiHandler(ui);
+	
+	// Status Header Widget
+	var st01_lbl01 = st01.addWidget(Label,[]);
+	st01_lbl01.setText('No S/N Found');
+	st01_lbl01.setWidth('100px');
+	
+	eUi.uiConnect(st01_lbl01, eUi.e.detector.config.detector_number, 10);
+	
+	st01.addNewLine();
+	
+	var st01_ind01 = st01.addWidget(Indicator,[]);
+	st01_ind01.setText('Not Connected');
+	st01_ind01.setWidth('120px');
+	eUi.uiConnect(st01_ind01, eUi.e.detector.status.state, .2);
+	ui.addHiddenHomeWidget(st01);
+	
+	// Navigation
+	var nv01 = new BlockArea(navigationArea, 1, 'xx', 'xx');
+	
+	// Adding pages to main
+	var pa01 = ui.addView(ViewArea, 'Home', 'Detector Settings');
+	var pa02 = ui.addView(ViewArea, 'Acquire', 'Aquisition Settings');
+	var pa03 = ui.addView(ViewArea, 'Exposure', 'Exposure Information');
+	var pa04 = ui.addView(ViewArea, 'Data', 'Data Information');
+	//var pa05 = ui.addView(ViewArea, 'Status', 'EIGER Status Information.');
+	var pa06 = ui.addView(ViewArea, 'Log', 'Logs and Information');
+	var pa07 = ui.addView(ViewArea, 'Help & Support', 'Information about DECTRIS Ltd. support and help.');
+	
+	// Adding buttons for pages (navigation)
+	var nv01_btn01 = ui.addNavButton(pa01, nv01);
+	var nv01_btn02 = ui.addNavButton(pa02, nv01);
+	var nv01_btn03 = ui.addNavButton(pa03, nv01);
+	var nv01_btn04 = ui.addNavButton(pa04, nv01);
+	//var nv01_btn05 = ui.addNavButton(pa05, nv01);
+	var nv01_btn06 = ui.addNavButton(pa06, nv01);
+	var nv01_btn07 = ui.addNavButton(pa07, nv01);
+	ui.addHiddenHomeNavigation(nv01_btn01);
+	ui.addHiddenHomeWidget(nv01_btn02);
+	ui.addHiddenHomeWidget(nv01_btn03);
+	ui.addHiddenHomeWidget(nv01_btn04);
+	ui.addHiddenHomeWidget(nv01_btn06);
+	ui.addHiddenHomeNavigation(nv01_btn07);
+	
+	// page1, connection settings
+	var p01_con01 = pa01.addWidget(EIGERConSet,[ui, eUi]);
+	var p02_set01 = pa02.addWidget(EIGERAcqSet,[ui, eUi]);
+	var p03_acq01 = pa03.addWidget(EIGERAcq, [ui, eUi]);
+	var p04_dat01 = pa04.addWidget(EIGERData, [ui, eUi]);
+	//var p05_sta01 = pa05.addWidget(EIGERStatus, [ui, eUi]);
+	var p06_log01 = pa06.addWidget(EIGERLog, [ui, eUi]);
+	var p07_hlp01 = pa07.addWidget(EIGERHelp, [ui, eUi]);
+    
+    //
+    pa06.activate = function () {
+        p06_log01.activateLog();
     }
-    return false;
+    pa06.leave = function () {
+        p06_log01.disableLog();
+    }
+    pa04.activate = function () {
+        eUi.e.filewriter.files.update();
+    }   
+
+	// Main Area Footer
+	
+	var ma01 = new BlockArea(mainArea, uniId++, 'xx', 'xx');
+	var ma01_lbl01 = ma01.addWidget(Label,[]);
+	ma01_lbl01.getJElement().addClass('main-footer')
+	ma01_lbl01.setText(sprintf('EIGER Quick Start Client, %s, Copyright: DECTRIS Ltd., Author: Andy Moesch',clientVersion))
+	ui.addHiddenHomeWidget(ma01);
+	
+	// Hide Navigation Bar and Status Widget until connnected
+	ui.enableHomeNavigationHover(navigationArea);
+});
+function EIGERStatus(parent, id, name, description, ui, eUi) {
+	ContainerArea.call(this, parent, id, name, description);
+	this.ui = ui;
+	this.ui.sset = this;
+	this.eUi = eUi;
+	this.type = 'StatusWidget';
+	this.ttl01 = this.addWidget(Title,[]);
+	this.ttl01.setLvl('h2');
+	this.ttl01.setText('EIGER Module Status');
+	
+	this.addNewLine();
+	
+    this.det = this.addWidget(SVGImage, []);
+    this.det.setHeight(600);
+    this.det.setWidth(800);
+    
+    this.btn01 = this.addWidget(Button,['show']);
+    
+	this.btn01.click(this.test, this);
+    
+    this.module1 = new EIGERSVGModule(this.det, 0, 'Module_00', 'Module 1234', 000, 000, .05);
+    this.module2 = new EIGERSVGModule(this.det, 0, 'Module_00', 'Module 1234', 000, 130, .05);
+    
+    this.module3 = new EIGERSVGModule(this.det, 0, 'Module_00', 'Module 1234', 242, 14, .05);
+    this.module4 = new EIGERSVGModule(this.det, 0, 'Module_00', 'Module 1234', 242, 144, .05);
 }
 
-// EIGER Queries
-/*
-Query Statuses:
--1: Failed
-0: Queued
-1: Started
-2: Successfully Ended
-*/
-function EIGERQuery(instance, handler, method, data, mimeType, acceptType, processData) {
-	this.id = undefined;
-	this.handler = handler;
-	this.method = method;
-	this.instance = instance;
-	this.data = data;
-    if (mimeType === undefined) {
-        this.mimeType = "application/json";
-    } else {
-        this.mimeType = mimeType;
-    }
-    if (acceptType === undefined) {
-        this.acceptType = "application/json";
-    } else {
-        this.acceptType = acceptType;
-    }
-    if (processData === undefined) {
-        this.processData = true;
-    } else {
-        this.processData = processData;
-    }
-	this.status = 0;
-    this.progressText = '';
-};
-
-EIGERQuery.prototype = {
-	setId : function(id) {
-		this.id = id;
-	},
-	getId : function() {
-		return this.id;
-	},
-	getText : function() {
-	return sprintf('[%s] %s:%s | %s | %s | %s',
-				this.method, 
-				this.instance.superDet.address,
-				this.instance.superDet.port,
-				this.instance.domain.index, 
-				this.instance.subdomain.index, 
-				this.instance.index);
-	},
-	setStatus : function(status) {
-		this.status = status;
-	},
-	exec : function() {
-		if ( this.status === 0) {
-			this.handler.execQuery(this);
-		};
-	},
-	deleteQ : function() {
-		if (this.status === 1) {
-			this.handler.abort(this);
-		} else if ( this.status === 0 ) {
-			this.handler.deleteQ(this);
-		}
-		this.status = -2;
-		this.handler.notifyQListenerUpdate(this);
-	},
-    download : function() {
-        saveFile(sprintf('%s.tif', this.instance.index), this.request.response);
+EIGERStatus.prototype = {
+    test : function () {
+        console.log(this.module1);
+        this.module1.rocs[0].setSVGPathsAttr('stroke', '#00ff00');  
     }
 };
-
-function EIGERMQuery(handler, cmd, widget, newQItemCallback, updateQItemCallback) {
-	this.qListener = {'widget' : widget,
-					'newCallback' : newQItemCallback, 
-					'updateCallback' : updateQItemCallback};
-							
-	this.id = undefined;
-	this.handler = handler;
-	this.status = 0;
-    this.progressText = '';
-	
-    if ( typeof cmd[0] === 'function' ) {
-        this.listOfQueues = cmd[0].apply(cmd[1][0],cmd[1]);
-    } else {
-        this.listOfQueues = cmd;
-    }
-	
-	this.qDone = 0;
-	this.qCount = this.listOfQueues.length;
-};
-
-EIGERMQuery.prototype = {
-	getText : function() {
-		return ''; //todo
-	},
-	getProgress : function() {
-		return ( this.qDone / this.qCount );
-	},
-	getQDone : function() {
-		return this.qDone;
-	},	
-	getQCount : function() {
-		return this.qCount;
-	},
-	setId : function(id) {
-		this.id = id;
-	},
-	getId : function() {
-		return sprintf('M%s',this.id);
-	},
-	setStatus : function(status) {
-		this.status = status;
-	},
-	exec : function() {    
-        if (this.qDone === this.qCount) {
-            this.status = 2;
-            this.qListener['updateCallback'].apply(this.qListener['widget'], [this]);
-        } else {
-            this.handler.addQueueListener(this, this.updateQ, this.newQ);
-            this.status = 1;
-            for ( var el in this.listOfQueues) {
-                this.listOfQueues[el].exec();
-            }
-        }
-	},
-	newQ : function (qInstance) {
-
-	},
-	updateQ : function (qInstance) {
-		if (this.checkQueued(qInstance)) {
-			if  ( qInstance.status === 2 ) {
-				this.qDone++;
-			} else if  ( qInstance.status === -1 ) {
-				this.qDone++;
-				this.status = -1;
-			}
-			if (this.qDone === this.qCount && this.status === 1) {
-				this.status = 2;
-				this.handler.removeQueueListener(this);
-			}
-			this.qListener['updateCallback'].apply(this.qListener['widget'], [this]);
-		}
-	},
-	checkQueued : function (qInstance) {
-		for (var el in this.listOfQueues) {
-			if (this.listOfQueues[el] === qInstance) {
-				return true;
-			}
-		}
-		return false;
-	},
-	deleteQ : function() {
-		this.status = -2;
-		for (var el in this.listOfQueues) {
-			this.listOfQueues[el].deleteQ();
-		}
-		this.handler.notifyQListenerUpdate(this);
-	}
-};
-
-// EIGER Command Handler
-function EIGERHandler() {
-	this.qInstInt = 0;
-	this.activeQueries = {};
-	this.history = 0;
-	this.qListerInt = 0;
-	this.qListenerList = {};
-};
-
-EIGERHandler.prototype = {
-	add2Queue : function(qInstance, noExec) {
-		var id = this.qInstInt++;
-		qInstance.setId(id);
-		this.notifyQListenerNew(qInstance);
-		this.activeQueries[id] = qInstance;
-		qInstance.progressText = 'Queued';
-        if (!noExec) {
-			qInstance.exec();
-        }
-		return qInstance;
-	},
-	addQueryListenerList : function (list) {
-		for (var index in list) {
-			this.qListenerList[this.qListerInt++] = list[index];
-		}
-	},
-	addQueueListener : function(widget, updateQItemCallback, newQItemCallback) {
-		var id = this.qListerInt++;
-		this.qListenerList[id] = {'widget' : widget,
-								'newCallback' : newQItemCallback, 
-								'updateCallback' : updateQItemCallback};
-	},
-	abort : function (qInstance) {
-		qInstance.request.abort();
-		for (var index in this.activeQueries) {
-			if ( this.activeQueries[index] === qInstance ) {
-				delete this.activeQueries[index];
-				break;
-			}
-		}
-	},
-	deleteQ : function (qInstance) {
-		for (var index in this.activeQueries) {
-			if ( this.activeQueries[index] === qInstance ) {
-				delete this.activeQueries[index];
-				break;
-			}
-		}
-	},	
-	abortAllKeyRequests : function (key) {
-		for (var index in this.activeQueries) {
-			if ( this.activeQueries[index].instance === key ) {
-				console.log('canceled request');
-				this.activeQueries[index].request.abort();
-				delete this.activeQueries[index];
-			}
-		}
-	},
-	getQueryStatusListeners : function () {
-		return this.qListenerList;
-	},
-	removeQueueListener : function(listener) {
-		for (var el in this.qListenerList) {
-			if ( this.qListenerList[el]['widget'] === listener ) {
-				delete this.qListenerList[el];
-			};
-		};
-	},
-	removeAllQueryStatusListeners : function () {
-		this.qListenerList = [];
-		this.qListerInt = 0;
-	},
-	notifyQListenerNew : function(qInstance) {
-		for (var el in this.qListenerList) {
-			if (this.qListenerList[el]['newCallback'] !== undefined) {
-				this.qListenerList[el]['newCallback'].apply(this.qListenerList[el]['widget'],[qInstance]);
-			}
-		}
-	},
-	notifyQListenerUpdate : function(qInstance) {
-		for (var el in this.qListenerList) {
-			this.qListenerList[el]['updateCallback'].apply(this.qListenerList[el]['widget'],[qInstance]);
-		}
-	},
-	execQuery: function(qInstance) {
-		qInstance.setStatus(1);
-		qInstance.progressText = 'Sent';
-		this.notifyQListenerUpdate(qInstance);
-		var callee = this;
-        // Workaround for getting verions (no Version field)
-		if (qInstance.instance.versionInURI === true) {
-			var url = sprintf('http://%s:%s/%s/api/%s/%s/%s',
-				qInstance.instance.superDet.address, 
-				qInstance.instance.superDet.port, 
-				qInstance.instance.domain.index, 
-				qInstance.instance.superDet.version, 
-				qInstance.instance.subdomain.index, 
-				qInstance.instance.index);
-		} else {
-			var url = sprintf('http://%s:%s/%s/api/%s/%s',
-				qInstance.instance.superDet.address, 
-				qInstance.instance.superDet.port, 
-				qInstance.instance.domain.index, 
-				qInstance.instance.subdomain.index, 
-				qInstance.instance.index);
-		};
-		qInstance.startTime = new Date().getTime();
-
-        qInstance.request = new XMLHttpRequest();
-        qInstance.request.open(qInstance.method, url, true);
-        if (qInstance.acceptType === 'application/tiff') {
-            qInstance.request.responseType = 'blob';
-        } else {
-            qInstance.request.responseType = 'json';
-        }
-
-        qInstance.request.setRequestHeader('Content-type', qInstance.mimeType);
-        qInstance.request.setRequestHeader('Accept', qInstance.acceptType)
-
-        qInstance.request.addEventListener("progress", function(e){});
-        qInstance.request.addEventListener("load", 
-            function(e) { 
-                if (qInstance.request.status >= 200 && qInstance.request.status < 300) {
-                    callee.sucess.apply(callee, [qInstance]);
-                } else {
-                    callee.error.apply(callee, [qInstance]);
-                }
-            });    
-        qInstance.request.addEventListener("error", 
-            function(e) { 
-                callee.error.apply(callee, [qInstance]);
-            });
-        qInstance.request.addEventListener("abort", 
-            function(e) { 
-                callee.error.apply(callee, [qInstance]);
-            });
-
-        qInstance.request.send(qInstance.data);
-	},
-    sucess : function (qInstance) {
-        // Remove <&& qInstance.instance.domain === 'detector'> once API is consistent :)
-        if (qInstance.method === 'PUT' && qInstance.instance.subdomain.index === 'config' && qInstance.instance.domain.index === 'detector') {
-            this._putSuccess(qInstance);
-        } else {
-            this._success(qInstance);
-        }
-    },
-	_success : function(qInstance) {
-		qInstance.setStatus(2);
-		qInstance.progressText = 'Done';
-		qInstance.endTime = new Date().getTime();
-		this.notifyQListenerUpdate(qInstance);
-		this.history++;
-		delete this.activeQueries[qInstance.id];
-	},
-    _putSuccess : function (qInstance) {
-        var changedKeys = qInstance.request.response;
-		var domain = qInstance.instance.domain;
-		var subdomain = qInstance.instance.subdomain;
-        if (!isNaN(Number(changedKeys.length)) && changedKeys.length > 0) {
-            var qList = [];
-            for (var i = 0 ; i < changedKeys.length ; i++) {
-                if ( !inExcludedKeys(changedKeys[i]) ) {
-                    var qInst = this.add2Queue(new EIGERQuery(subdomain[changedKeys[i]], this, 'GET'));
-                    qList.push(qInst);
-                }
-            }
-            var mQ = new EIGERMQuery(this, qList, this, function () {}, this._updateMQ);
-            mQ.mainQ = qInstance;
-            this.add2Queue(mQ);
-        }
-    },
-    _updateMQ : function (qMInstance) {
-        qMInstance.mainQ.progressText = sprintf('UD %3.1f%%',qMInstance.getProgress()*100);
-		this.notifyQListenerUpdate(qMInstance.mainQ);
-        if (qMInstance.status === 2) {		
-            this.history++;
-            delete this.activeQueries[qMInstance.id];
-            this._success(qMInstance.mainQ, qMInstance.mainQ.response);
-        }
-    },
-	error : function(qInstance) {
-        if (qInstance.request.status == 504 || qInstance.request.statusText === 'timeout') {
-            switch (qInstance.instance.index) {
-                case 'trigger' :
-                    this.stateListener(qInstance, ['idle','ready'], ['acquire']);
-                    break;
-                case 'arm':
-                    this.stateListener(qInstance, ['idle','ready'], ['configure']);
-                    break;
-                case 'initialize':
-                    this.stateListener(qInstance, ['idle'], ['initialize']);
-                    break;
-                default:
-                    this._error(qInstance);
-                    break;
-            }
-        } else {
-            this._error(qInstance);
-        }
-	},
-    _error : function (qInstance) {
-		qInstance.progressText = 'Error';
-        qInstance.setStatus(-1);
-        this.notifyQListenerUpdate(qInstance);
-        this.history[qInstance.id] = qInstance;
-        this.history++;
-        delete this.activeQueries[qInstance.id];  
-    },
-    stateListener : function (qInstance, successStates, allowedStates) {
-        qInstance.progressText = 'StateMode';
-        console.log(sprintf('Request timedout, changing to state listener mode...', qInstance.instance.index));
-		this.notifyQListenerUpdate(qInstance);
-        var callee = this;
-        var listenerIndex = qInstance.instance.superDet.detector.status.state.refresh( function () {
-            callee.stateChange.apply(callee, [qInstance, successStates, allowedStates])
-        }, this);
-        qInstance.listenerIndex = listenerIndex;
-    },
-    stateChange : function (qInstance, successStates, allowedStates) {
-        var state = qInstance.instance.superDet.detector.status.state.value.value;
-        var success = false;
-        for (index in successStates) {
-            if ( state === successStates[index] ) {
-                success = true;
-                break;
-            }
-        }
-        console.log(sprintf('Checking state: %s (value: %s, expected: [%s])', success, state, successStates.join()));
-        if (success) {
-            qInstance.instance.superDet.detector.status.state.unbindRefresh(qInstance.listenerIndex);
-            this.sucess(qInstance);
-        } else {
-            var failState = true;
-            for (var index in  allowedStates) {
-                if (allowedStates[index] === state) {
-                    failState = false;
-                    break;
-                }
-            }
-            if (failState) {
-                qInstance.instance.superDet.detector.status.state.unbindRefresh(qInstance.listenerIndex);
-                this._error(qInstance);
-            }
-        }
-    }
-};
-
-function EIGERContainer() {
-	this.versionInURI = true;
-	this.refreshListeners = [];
-    this.children = [];
-};
-
-EIGERContainer.prototype = {
-	addChilds : function(list) {
-		for ( var index in list ) {
-			var child = this.constructChild(list[index]);
-			this[list[index]] = child;
-            this.children[list[index]] = child;
-		}
-	},	
-	refresh : function (action, thisArg) {
-		return this.refreshListeners.push([action, thisArg])-1;
-	},
-    unbindRefresh : function (listenerIndex) {
-		return delete this.refreshListeners[listenerIndex];
-    },
-	refreshed: function(event){
-		for (var index in this.refreshListeners) {
-			this.refreshListeners[index][0].apply(this.refreshListeners[index][1], [event]);
-		}
-	},	
-	queueQuery : function(method, data, noExec) {
-		return this.superDet.handler.add2Queue(new EIGERQuery(this, this.superDet.handler, method, data), noExec);
-	},
-	queueGetQuery : function(noExec) {
-		return this.queueQuery('GET', '', noExec);
-	},
-	queueGetFileQuery : function(noExec) {
-		return this.superDet.handler.add2Queue(new EIGERQuery(this, this.superDet.handler, 'GET', '', false, 'application/tiff', false), noExec);
-	},
-	queuePutQuery : function(data, noExec) {
-		return this.queueQuery('PUT', data, noExec);
-	},
-	queuePutFileQuery : function(data, noExec) {
-		return this.superDet.handler.add2Queue(new EIGERQuery(this, this.superDet.handler, 'PUT', data, 'application/tiff', 'application/json', false), noExec);
-	},
-	queueDeleteQuery : function(noExec) {
-		return this.queueQuery('DELETE', '', noExec);
-	},
-	update : function (noExec) {
-		if ( this instanceof EIGERKey || this instanceof EIGERSpecialKey ) {
-			if (this.access_mode.value !== 'w') {
-				return [this.queueGetQuery(noExec)];
-			};
-		} else {
-			var qList = [];
-			for (var el in this.children) {
-                var retArr = this.children[el].update(noExec);
-				if (retArr !== undefined) {
-					qList = qList.concat(retArr);
-				}
-			};
-			return qList;
-		}
-	}
-};
-
-function EIGER(address, port, handler, version) {
-	EIGERContainer.call(this);
-	this.address = address;
-	this.port = port;
-	this.index = 'detector';
-    
-	this.connectionStateID = 0;
-	
-	this.handler = handler;
-    
-    if (version === undefined) {
-        this.setVersion(defaultVersion);
-    } else {
-        this.setVersion(version);
-    }
-    
-    console.log(this);
-	
-	this.handler.addQueueListener(this, this.updateQItem) 
-};
-
-EIGER.prototype = {
-    reconstruct : function() {   
-		// Delete all existing children
-		for (child in this.children) {
-			this[child] = [];
-			delete(this[child])
-		}
-		this.children = [];
-	
-		// Select domains depending on the version which is being run
-		// Monitor is excluded for Version 1.6.x because there are performance issues
-        var addDomains = [];
-	
-        //if ( this.isVersionOrHigher(1,0,0) && !this.isVersionOrHigher(1,6,0) ) {
-        if ( this.isVersionOrHigher(1,0,0) ) {
-            addDomains.push('monitor');
-        }
-        if ( this.isVersionOrHigher(1,5,0) ) {
-            addDomains.push('stream');   
-        }
-		
-		// Add domains as children
-        this.addChilds(domains.concat(addDomains));
-        
-    },
-	constructChild : function(index) {
-		return new EIGERDomain(this, index);
-	},
-	setHost : function(address, port) {
-		this.address = address;
-		this.port = port;
-	},
-	setVersion : function (version) { 
-		this.version = version;   
-        var versionArr = this.version.split('.');
-        this.versionArr = [];
-        for (var index in versionArr) {
-            this.versionArr.push(versionArr[index]);
-        }
-        this.reconstruct();
-	},
-	updateQItem : function(qInstance) {
-		if (qInstance.status === 2) {
-			qInstance.instance.updateValues(qInstance.request.response);
-		}
-	},
-    isVersionOrHigher : function(mayor, minor, patch) {
-        if ( ( mayor < this.versionArr[0] ) || (((minor < this.versionArr[1])||(patch <= this.versionArr[2] && minor == this.versionArr[1])) && mayor == this.versionArr[0]) ) {
-            return true;
-        } else {
-            return false;
-        }
-    },
-	unbind : function() {
-		this.handler.removeQueueListener(this) 
-	}
-};
-
-
-function EIGERDomain(superDet, index) {
-	EIGERContainer.call(this);
-	this.superDet = superDet;
-	this.index = index;
-    this.name = index;
-    if (this.superDet.isVersionOrHigher(1,0,0)) {
-        this.constructVersionedChilds(subdomains,specialKeys.concat([{'domain' : 'monitor', 'subdomain' : 'version', 'versionInURI' : false},{'domain' : 'monitor', 'subdomain' : 'images', 'versionInURI' : true}]));
-    } else {
-        this.constructVersionedChilds(subdomains,specialKeys);
-    }
-};
-
-EIGERDomain.prototype = {
-	constructChild : function(index) {
-		return new EIGERSubDomain(this.superDet, this,  index);
-	},
-    constructVersionedChilds: function(vSubdomains, vSpecialKeys) {
-        this.addChilds(vSubdomains); 
-        for (var index in vSpecialKeys){
-            if (vSpecialKeys[index]['domain'] === this.index) {
-                this.children[vSpecialKeys[index]['subdomain']] = new EIGERSpecialKey(this.superDet, this, vSpecialKeys[index]['subdomain'], vSpecialKeys[index]['versionInURI']);
-                this[vSpecialKeys[index]['subdomain']] = this.children[vSpecialKeys[index]['subdomain']];
-            }
-        }
-    } 
-};
-
-function EIGERSubDomain(superDet, domain, index) {
-	EIGERContainer.call(this);
-	this.superDet = superDet;
-	this.domain = domain;
-	this.index = index;
-    this.name = index;
-    if (this.superDet.isVersionOrHigher(1,5,0)) {
-        this.addChilds(keys[this.domain.index][this.index].concat(['keys']));
-    } else if (this.index === 'config' || this.index ===  'status') {
-        this.addChilds(keys[this.domain.index][this.index].concat(['keys']));
-    } else {
-        this.addChilds(keys[this.domain.index][this.index]);
-    }
-};
-
-EIGERSubDomain.prototype = {
-	constructChild : function(index) {
-		return new EIGERKey(this.superDet, this.domain, this,  index);
-	}
-};
-
-function EIGERKey(superDet, domain, subdomain, index) {
-	EIGERContainer.call(this);
-	this.superDet = superDet;
-	this.domain = domain;
-	this.subdomain = subdomain;
-	this.index = index;
-    this.name = index;
-	if ( this.subdomain.index === 'command' ) {
-		this.constructChild('access_mode', 'w');
-	} else if ( this.subdomain.index === 'status' || this.index == 'keys') { // Fix for an incompability with JAUN, seems like a bug to me
-		this.constructChild('access_mode', 'r');
-    } else {
-		this.constructChild('access_mode', '');
-	};
-};
-
-EIGERKey.prototype = {
-	constructChild : function(index, value) {
-		var tmp = new EIGERValue(this.superDet, this.domain, this.subdomain, this, index, value);
-		this.children[index] = tmp;
-		this[index] = tmp;
-	},
-    updateKey : function (noExec) {
-		if (this.index === 'chi_start') {
-			console.log(this == this.superDet[this.domain.index][this.subdomain.index][this.index])
-		}
-		if (this.access_mode.value !== 'w') {
-            return this.queueGetQuery(noExec);
-        };
-    },
-	updateValues : function(valueTuple) {
-		if (this.index === 'keys') {
-			var newKeys = [];
-			for (var vIndex in valueTuple) {
-				var inKeys = false;
-				for (var kIndex in this.superDet[this.domain.index][this.subdomain.index].children) {
-					if (this.superDet[this.domain.index][this.subdomain.index][kIndex].index === valueTuple[vIndex]) {
-						inKeys = true;
-						break;
-					}
-				}
-				if (!inKeys) {
-					newKeys.push(valueTuple[vIndex]);
-				}
-			}
-            this.subdomain.children.concat(this.subdomain.addChilds(newKeys));
-		}
-		for (var index in valueTuple) {
-			if (this[index] !== undefined) {
-				this[index].value = valueTuple[index];
-			} else {
-				this.constructChild(index, valueTuple[index]);
-			}
-		}
-		this.refreshed();
-	},
-	setValue : function(value, noExec) {
-		return this.queuePutQuery(JSON.stringify({'value':value}), noExec);
-	},
-    setUploadFile : function(file, noExec) {
-        return this.queuePutFileQuery(file, noExec);
-    },
-    downloadFile : function(noExec) {
-        return this.queueGetFileQuery(noExec);
-    }
-};
-
-function EIGERSpecialKey(superDet, domain, subdomain, versionInURI) {
-	EIGERContainer.call(this);
-	this.superDet = superDet;
-	this.domain = domain;
-	this.subdomain = {};
-	this.subdomain.index = subdomain;
-	this.versionInURI = versionInURI;
-	this.index = '';
-    this.name = subdomain;
-	this.constructChild('access_mode', 'r');
-};
-
-EIGERSpecialKey.prototype = {
-	constructChild : function(index, value) {
-		var tmp = new EIGERValue(this.superDet, this.domain, this.subdomain, this, index, value);
-		this.children[index] = tmp;
-		this[index] = tmp;
-	},
-    updateKey : function (noExec) {
-        if (this.access_mode.value !== 'w') {
-            return this.queueGetQuery(noExec);
-        };
-    },
-	updateValues : function(valueTuple) {
-		if ('value' in valueTuple) {
-			for (var index in valueTuple) {
-				if (this[index] !== undefined) {
-					this[index].value = valueTuple[index]
-				} else {
-					this.constructChild(index, valueTuple[index]);
-				}
-			}
-		} else {
-			var index = 'value';
-			if (this[index] !== undefined) {
-				this[index].value = valueTuple;
-			} else {
-				this.constructChild(index, valueTuple);
-			}
-		}
-		this.refreshed();
-	},
-	setValue : function(value, noExec) {
-		this.queuePutQuery(JSON.stringify({'value':value}), noExec);
-	}
-};
-
-function EIGERValue(superDet, domain, subdomain, key, index, value) {
-	this.superDet = superDet;
-	this.domain = domain;
-	this.subdomain = subdomain;
-	this.key = key;
-	this.index = index;
-	this.value = value;
-};
-
-EIGERValue.prototype = {
-	update : function (noExec) {
-		this.key.update(noExec);
-	}
-};
-
-extend(EIGERContainer, EIGER);
-extend(EIGERContainer, EIGERDomain);
-extend(EIGERContainer, EIGERSubDomain);
-extend(EIGERContainer, EIGERKey);
-extend(EIGERContainer, EIGERSpecialKey);
 
 // Connection Settings Widget
 function EIGERConSet(parent, id, name, description, ui, eUi) {
@@ -2034,9 +1580,10 @@ function EIGERConSet(parent, id, name, description, ui, eUi) {
 	this.ui.cset = this;
 	this.eUi = eUi;
 	this.type = 'ConnectionWidget';
+	
 	this.ttl01 = this.addWidget(Title,[])
 	this.ttl01.setLvl('h2');
-	this.ttl01.setText('EIGER Connection Settings');
+	this.ttl01.setText('Connect to your EIGER Detector');
 	
 	this.addNewLine();
 	
@@ -2046,15 +1593,25 @@ function EIGERConSet(parent, id, name, description, ui, eUi) {
 	this.inp01.setTitle('Address');
 	this.inp01.setValue(document.domain);
 	
+	this.btn01 =  this.frm01.addWidget(Button,['...']);
+	this.btn01.click(this.showAdvSetting, this)
+	
 	this.inp02 = this.frm01.addWidget(Input,[]);
 	this.inp02.setTitle('Port');
+	this.inp02.setValue('80');
 	
-	this.btn01 = this.frm01.addWidget(SubmitButton,['connect']);
+	this.inp02.setVisibility(false);
+	
+	this.btn02 = this.frm01.addWidget(SubmitButton,['connect']);
 	
 	this.frm01.submit(this.connect, this);
 }
 
 EIGERConSet.prototype = {
+	showAdvSetting: function(event) {
+		this.btn01.setVisibility(false);
+		this.inp02.setVisibility(true);
+	},
 	connect : function(event) {
 		this.eUi.connect(this.inp01.getValue(), this.inp02.getValue());
 	},
@@ -2305,6 +1862,7 @@ function EIGERConvenienceFunctions (ui, eUi, action) {
             this.cmd01.exec();
             break;
 		case 'checkstate' :
+			this.cmp01.setTitle('Checking status and error keys of the detector...')
 			if (!this.eUi.e.isVersionOrHigher(1,6,0)) {
 				if (confirm('The detector will have to be reinitialized (JAUN Version 1.5.0 and older) in order to get the current state. Would you like to initialize the detector now?'))
 				{
@@ -2316,11 +1874,22 @@ function EIGERConvenienceFunctions (ui, eUi, action) {
 				this.cmd01.addCmd(this.eUi.e.detector.command.status_update, ['Put', '', true])
 			}
 			this.cmd01.addCmd(this.eUi.e.detector.status.state, ['GET', '', true]);
+			this.cmd01.addCmd(this.eUi.e.detector.status.error, ['Get', '', true]);
 			this.cmd01.addCmd(this.eUi.e.filewriter.status.state, ['GET', '', true]);
-            var cmdHeight = 3;
-            if (this.eUi.e.monitor) {this.cmd01.addCmd(this.eUi.e.monitor.status.state, ['GET', '', true]); cmdHeight++;}
-            if (this.eUi.e.stream) {this.cmd01.addCmd(this.eUi.e.stream.status.state, ['GET', '', true]); cmdHeight++;}
-            this.cmd01.setCmdHeight(sprintf('%spx', cmdHeight*30));
+			this.cmd01.addCmd(this.eUi.e.filewriter.status.error, ['GET', '', true]);
+            var cmdHeight = 4;
+            if (this.eUi.e.monitor) 
+			{
+				this.cmd01.addCmd(this.eUi.e.monitor.status.state, ['GET', '', true]); 
+				this.cmd01.addCmd(this.eUi.e.monitor.status.error, ['GET', '', true]);
+				cmdHeight += 2;
+			}
+            if (this.eUi.e.stream) {
+				this.cmd01.addCmd(this.eUi.e.stream.status.state, ['GET', '', true]); 
+				this.cmd01.addCmd(this.eUi.e.monitor.status.error, ['GET', '', true]);
+				cmdHeight += 2;
+			}
+            this.cmd01.setCmdHeight(sprintf('%spx', cmdHeight*32));
             this.cmd01.exec();
             break;
     }
@@ -2649,6 +2218,7 @@ EIGERHelp.prototype = {
 
 };
 
+extend(ContainerArea, EIGERStatus);
 extend(ContainerArea, EIGERConSet);
 extend(ContainerArea, EIGERAcqSet);
 extend(ContainerArea, EIGERAcq);
@@ -2891,7 +2461,7 @@ function EIGERCustomCmdPrompt(parent, id, name, description, eUi) {
 	this.tlt01.setLvl('h3');
     
     this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'top', ['mid',-200], 0);
-    this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'left', ['mid',-410], 0);
+    this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'left', ['mid',-445], 0);
 	this.eUi.ui.resizer.trigger();
     
     this.tlt01.setText('Custom Command Queue Builder');
@@ -2899,11 +2469,29 @@ function EIGERCustomCmdPrompt(parent, id, name, description, eUi) {
 	this.addNewLine();
     
     var callee = this;
-    
-    this.frm01 = this.addWidget(Form, []);
-    this.frm01.submit(this.submit, this);
+	
+	this.ext01 = this.addWidget(Extendable,[]);
+    this.ext01.setTitle('Add or Append to Queue from File');
 
-    this.sel01 = this.frm01.addWidget(Select,[]);
+	this.frm01 = this.ext01.addContent(Form, []);
+    this.frm01.submit(this.append, this);
+	
+	this.fin01 = this.frm01.addWidget(FileInput,[])
+    this.fin01.setTitle('Select file to upload...');
+	
+	this.btn01 = this.frm01.addWidget(SubmitButton, ['Append to Queue']);
+	
+    this.addNewLine();
+    
+	this.ext02 = this.addWidget(Extendable,[]);
+    this.ext02.setTitle('Append to Queue manually');
+	
+	this.ext02.toggle()
+	
+    this.frm02 = this.ext02.addContent(Form, []);
+    this.frm02.submit(this.submit, this);	
+	
+    this.sel01 = this.frm02.addWidget(Select,[]);
     this.sel01.setTitle('Method');
     this.sel01.setWidth('80px');
     this.sel01.addOptions(['GET','PUT','DELETE']);
@@ -2911,7 +2499,7 @@ function EIGERCustomCmdPrompt(parent, id, name, description, eUi) {
         callee.changeMethod.apply(callee, [event]);
     });
     
-    this.sel02 = this.frm01.addWidget(Select,[]);
+    this.sel02 = this.frm02.addWidget(Select,[]);
     this.sel02.setTitle('Module');
     this.sel02.setWidth('80px');
     this.addOptions(this.sel02,this.eUi.e.children);
@@ -2919,7 +2507,7 @@ function EIGERCustomCmdPrompt(parent, id, name, description, eUi) {
         callee.changeModule.apply(callee, [event]);
     });
     
-    this.sel03 = this.frm01.addWidget(Select,[]);
+    this.sel03 = this.frm02.addWidget(Select,[]);
     this.sel03.setTitle('Task');
     this.sel03.setWidth('87px');
     this.sel03.jInput.change(function (event) {
@@ -2927,7 +2515,7 @@ function EIGERCustomCmdPrompt(parent, id, name, description, eUi) {
     });
     this.sel03.setDisabled(true);
     
-    this.sel04 = this.frm01.addWidget(Select,[]);
+    this.sel04 = this.frm02.addWidget(Select,[]);
     this.sel04.setTitle('Key');
     this.sel04.setWidth('247px');
     this.sel04.jInput.change(function (event) {
@@ -2935,21 +2523,21 @@ function EIGERCustomCmdPrompt(parent, id, name, description, eUi) {
     });
     this.sel04.setDisabled(true);
     
-    this.vaa01 = this.frm01.addWidget(ContainerArea,[]);
+    this.vaa01 = this.frm02.addWidget(ContainerArea,[]);
     this.vaa01.setWidth('150px');
     
-    this.frm01.addNewLine();
+    this.frm02.addNewLine();
     
-    this.lbl01 = this.frm01.addWidget(Label,[]);
+    this.lbl01 = this.frm02.addWidget(Label,[]);
     this.lbl01.setWidth('500px');
     this.lbl01.setText(' ');
     
-    this.chk01 = this.frm01.addWidget(CheckBox, []);
+    this.chk01 = this.frm02.addWidget(CheckBox, []);
     this.chk01.setWidth('150px');
     this.chk01.setTitle('Execute manually');
     
-    this.btn01 = this.frm01.addWidget(SubmitButton, ['Add To Queue'])
-    this.btn01.setDisabled(true);
+    this.btn02 = this.frm02.addWidget(SubmitButton, ['Add To Queue'])
+    this.btn02.setDisabled(true);
 	
     this.addNewLine();
 	
@@ -2964,15 +2552,19 @@ function EIGERCustomCmdPrompt(parent, id, name, description, eUi) {
     
     this.chk02 = this.addWidget(CheckBox, []);
     this.chk02.setTitle('Close when finished');
-    this.chk02.jInput.change( function () { callee.closeDone = callee.chk02.getValue() } )
+    this.chk02.jInput.change( function () { callee.closeDone = callee.chk02.getValue() } );
     
     
-    this.btn02 = this.addWidget(Button, ['Execute']);
-    this.btn02.click(this.startQ, this);
-    this.btn02.setDisabled(true);
+    this.btn03 = this.addWidget(Button, ['Execute']);
+    this.btn03.click(this.startQ, this);
+    this.btn03.setDisabled(true);
+	
+	this.btn04 = this.addWidget(Button, ['Save Queue to file']);
+    this.btn04.click(this.save, this);
+    this.btn04.setDisabled(true);
 
-    this.btn03 = this.addWidget(Button, ['Close']);
-    this.btn03.click(this.close, this);
+    this.btn05 = this.addWidget(Button, ['Close']);
+    this.btn05.click(this.close, this);
 }
 
 EIGERCustomCmdPrompt.prototype = {
@@ -2992,24 +2584,17 @@ EIGERCustomCmdPrompt.prototype = {
         widget.addOptions(argList);
         widget.setValue('');
     },
-    getDataType : function (key) {
-        try { 
-            if (key.name === 'flatfield' || key.name === 'pixel_mask') {
-                var dataType = 'file';
-            } else {
-                var dataType = key.value_type.value;
-            }
-        } catch(err) {
-            if (key.subdomain.index === 'command') {
-                if (key.index === 'trigger') {
-                    var dataType = 'float';
-                } else {
-                    var dataType = 'command';
-                }
-            }
-        };
-        return dataType;
-    },
+	append : function () {
+		var reader = new FileReader();
+		var callee = this;
+		reader.onload = function(progressEvent){
+			// Entire file
+			callee.cmd01.importFromStr.apply(callee.cmd01,[this.result]);
+		};
+		reader.readAsText(this.fin01.getFile());
+		this.btn03.setDisabled(false);
+        this.btn04.setDisabled(false);
+	},
     addValueField : function (key) {        
         var dataType = this.getDataType(key);
         try { var allowedValues = key.allowed_values.value; } catch(err) {};
@@ -3079,7 +2664,7 @@ EIGERCustomCmdPrompt.prototype = {
     changeModule : function (event) {
         this.removeValueField();
         this.enableAllModes();
-        this.btn01.setDisabled(true);
+        this.btn02.setDisabled(true);
         this.sel03.empty();
         this.sel03.setDisabled(false);
         this.sel04.empty();
@@ -3089,7 +2674,7 @@ EIGERCustomCmdPrompt.prototype = {
     changeTask : function (event) {
         this.removeValueField();
         this.enableAllModes();
-        this.btn01.setDisabled(true);
+        this.btn02.setDisabled(true);
         this.sel04.setDisabled(true);
         this.sel04.empty();
         if (this.eUi.e[this.sel02.getValue()][this.sel03.getValue()] instanceof EIGERSubDomain) {
@@ -3098,7 +2683,7 @@ EIGERCustomCmdPrompt.prototype = {
         } else if (this.eUi.e[this.sel02.getValue()][this.sel03.getValue()] instanceof EIGERSpecialKey) {
             this.enableMode(this.eUi.e[this.sel02.getValue()][this.sel03.getValue()].access_mode.value);
             this.sel04.setDisabled(true);
-            this.btn01.setDisabled(false);
+            this.btn02.setDisabled(false);
         }
     },
     changeKey : function (event) {
@@ -3115,7 +2700,7 @@ EIGERCustomCmdPrompt.prototype = {
                     this.removeValueField();
                     break;
             }
-            this.btn01.setDisabled(false);
+            this.btn02.setDisabled(false);
         } catch (err) {
             console.log(err);
         }
@@ -3164,55 +2749,48 @@ EIGERCustomCmdPrompt.prototype = {
             }
         });
     },
+	save : function () {
+		var data = new Blob([this.cmd01.exportAsStr()], {type: 'application/json'});
+		saveFile(sprintf('BRUENIG_%s.json',new Date().toISOString().slice(0, 10)), data)
+	},
     startQ : function () {
-        this.btn02.setVisibility(false);
-        this.frm01.setVisibility(false);
+        this.btn03.setVisibility(false);
+        this.ext01.setVisibility(false);
+        this.ext02.setVisibility(false);
         this.cmd01.btn01.setDisabled(false);
         this.cmd01.exec();
     },
     submit : function (args) {
-        var subdomain = this.eUi.e[this.sel02.getValue()][this.sel03.getValue()];
-        var key = (subdomain instanceof EIGERSpecialKey) ? subdomain : subdomain[this.sel04.getValue()];
-        var execStyle = (this.chk01.getValue()) ? this.cmd01.EXEC_CLICK : this.cmd01.EXEC_IMMED;
-        switch(this.sel01.getValue()) {
-            case 'GET':
-                if (this.getDataType(key) === 'file') {
-                    this.addQObj(key.downloadFile(true), execStyle)
-                } else {
-                    this.addQObj(key.updateKey(true), execStyle);
-                }
-                break;
-            case 'PUT':
-                try { 
-                    var value = this.getValue(key);       
-                    if (this.getDataType(key) === 'file') {
-                        this.addQObj(key.setUploadFile(value,true), execStyle);
-                    } else {
-                        this.addQObj(key.setValue(value,true), execStyle);
-                    }
-                } catch (err) {
-                    alert(sprintf('Error in parsing value.\n\n%s', err));
-                }
-                break;
-            default:
-                break;    
-        }
-        this.btn02.setDisabled(false);
+		var subdomain = this.eUi.e[this.sel02.getValue()][this.sel03.getValue()];
+		var key = (subdomain instanceof EIGERSpecialKey) ? subdomain : subdomain[this.sel04.getValue()];
+		if (this.sel01.getValue() === 'PUT') {
+			this.addQObjByNames(this.sel02.getValue(), this.sel03.getValue(), this.sel04.getValue(), this.sel01.getValue(),  this.getValue(key), this.chk01.getValue());
+        } else {
+			this.addQObjByNames(this.sel02.getValue(), this.sel03.getValue(), this.sel04.getValue(), this.sel01.getValue(),  undefined, this.chk01.getValue());	
+		}
+		this.btn03.setDisabled(false);
+        this.btn04.setDisabled(false);
     },
 	addCmd : function (args) {
-		this.cmd01.addCmd.apply(this.cmd01, arguments);
+		return(this.cmd01.addCmd.apply(this.cmd01, arguments));
 	},
 	addQObj : function (args) {
-		this.cmd01.addQObj.apply(this.cmd01, arguments);
+		return(this.cmd01.addQObj.apply(this.cmd01, arguments));
+	},
+	addQObjByNames : function (args) {
+		return(this.cmd01.addQObjByNames.apply(this.cmd01, arguments));
 	},
 	addMCmd : function (args) {
-		this.cmd01.addMCmd.apply(this.cmd01, arguments);
+		return(this.cmd01.addMCmd.apply(this.cmd01, arguments));
+	},
+	getDataType : function (args) {
+		return(this.cmd01.getDataType.apply(this.cmd01, arguments));
 	},
 	setTitle : function (args) {
-		this.tlt01.setText.apply(this.tlt01,arguments);
+		return(this.tlt01.setText.apply(this.tlt01,arguments));
 	},
 	setCmdHeight : function (args) {
-		this.cmd01.setCmdHeight.apply(this.cmd01,arguments);
+		return(this.cmd01.setCmdHeight.apply(this.cmd01,arguments));
 	}
 };
 
@@ -3237,7 +2815,7 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.addClickListener(this.getJElement(), function () {});
     
     this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'top', ['mid',-300], 0);
-    this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'left', ['mid',-400], 0);
+    this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'left', ['mid',-445], 0);
 	this.eUi.ui.resizer.trigger();
     
     this.img01 = this.addWidget(Image,[]);
@@ -3617,7 +3195,7 @@ EIGERCmdInformation.prototype = {
         }
     },
 	setTitle : function (args) {
-		this.tlt01.setText.apply(this.tlt01,arguments);
+		return(this.tlt01.setText.apply(this.tlt01,arguments));
 	}
 };
 
@@ -3640,7 +3218,7 @@ function EIGERSubseqCmdPrompt(parent, id, name, description, eUi, callback) {
 	this.tlt01.setLvl('h3');
     
     this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'top', ['mid',-200], 0);
-    this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'left', ['mid',-410], 0);
+    this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'left', ['mid',-445], 0);
 	this.eUi.ui.resizer.trigger();
     
 	this.cmdLogList = [];
@@ -3662,25 +3240,25 @@ EIGERSubseqCmdPrompt.prototype = {
         return tmpLog;
     },
 	addCmd : function (args) {
-		this.cmd01.addCmd.apply(this.cmd01, arguments);
+		return(this.cmd01.addCmd.apply(this.cmd01, arguments));
 	},
 	addQObj : function (args) {
-		this.cmd01.addQObj.apply(this.cmd01, arguments);
+		return(this.cmd01.addQObj.apply(this.cmd01, arguments));
 	},
 	addMCmd : function (args) {
-		this.cmd01.addMCmd.apply(this.cmd01, arguments);
+		return(this.cmd01.addMCmd.apply(this.cmd01, arguments));
 	},
 	exec : function (args) {
-		this.cmd01.exec.apply(this.cmd01, arguments);
+		return(this.cmd01.exec.apply(this.cmd01, arguments));
 	},
     setCloseDone : function (value) {
         this.closeDone = value;
     } ,
 	setTitle : function (args) {
-		this.tlt01.setText.apply(this.tlt01,arguments);
+		return(this.tlt01.setText.apply(this.tlt01,arguments));
 	},
 	setCmdHeight : function (args) {
-		this.cmd01.setCmdHeight.apply(this.cmd01,arguments);
+		return(this.cmd01.setCmdHeight.apply(this.cmd01,arguments));
 	},
     _step : function(data, cmdLogId, state) {
         if (this.cmdLogCallback[cmdLogId] !== undefined) {
@@ -3716,7 +3294,7 @@ function EIGERSubseqCmdHandler (parent, id, name, description, eUi, callbackList
 	this.statusText = '';
     
     this.tblContainer = this.addWidget(BlockArea, parent, id, name, description)
-	this.tblContainer.jElement.css('overflow-y','scroll');
+	//this.tblContainer.jElement.css('overflow-y','scroll');
 	this.tblContainer.jElement.css('overflow-x','hidden');
     
     this.setHeight('400px');
@@ -3771,6 +3349,70 @@ EIGERSubseqCmdHandler.prototype = {
 			this.end();
         }
 	},
+	exportAsStr : function () {
+		var exportQList = {};
+		this.listOfQueues.forEach( function (element, index, array)
+        {
+            exportQList[index] = {
+				"endingCommand" : element.endingCommand,
+				"execStyle" : element.execStyle,
+				"acceptType" : element.qObject.acceptType,
+				"data" : element.qObject.data,
+				"method" : element.qObject.method,
+				"mimeType" : element.qObject.mimeType,
+				"processData" : element.qObject.processData,
+				"apiDomain" : element.qObject.instance.domain.name,
+				"apiSubDomain" : element.qObject.instance.subdomain.name,
+				"apiKey" : element.qObject.instance.name
+			};
+        }, this)
+		return JSON.stringify(exportQList);
+	},
+	importFromStr : function (importStr) {
+		var qImportObj = JSON.parse(importStr);
+		for (var index in qImportObj)
+        {
+			obj = qImportObj[index];
+			var value = ''
+			try {
+				value = JSON.parse(obj['data'])['value']
+			} catch (err) {}
+			this.addQObjByNames(obj['apiDomain'],
+								obj['apiSubDomain'],
+								obj['apiKey'],
+								obj['method'],
+								value,
+								obj['execStyle'],
+								obj['endingCommand']);
+		}
+	},
+	addQObjByNames : function (qObjDomain, qObjSubDomain, qObjKey, qObjMethod, qObjValue, qObjExecStyle, qObjEndingCommand) {
+		var subdomain = this.eUi.e[qObjDomain][qObjSubDomain];
+		var key = (subdomain instanceof EIGERSpecialKey) ? subdomain : subdomain[qObjKey];
+		var execStyle = (qObjExecStyle) ? this.EXEC_CLICK : this.EXEC_IMMED;
+		switch(qObjMethod) {
+			case 'GET':
+				if (this.getDataType(key) === 'file') {
+					this.addQObj(key.downloadFile(true), execStyle, qObjEndingCommand)
+				} else {
+					this.addQObj(key.updateKey(true), execStyle, qObjEndingCommand);
+				}
+				break;
+			case 'PUT':
+				try {   
+					if (this.getDataType(key) === 'file') {
+						this.addQObj(key.setUploadFile(qObjValue,true), execStyle, qObjEndingCommand);
+					} else {
+						this.addQObj(key.setValue(qObjValue,true), execStyle, qObjEndingCommand);
+					}
+				} catch (err) {
+					alert(sprintf('Error in parsing value.\n\n%s', err));
+				}
+				break;
+			default:
+				break;    
+		}
+	},
 	exec: function() {
 		var eIter = this.eIter++;
 		if (this.listOfQueues[eIter] === undefined) {
@@ -3803,6 +3445,24 @@ EIGERSubseqCmdHandler.prototype = {
 			}
 		};
 	},
+    getDataType : function (key) {
+        try { 
+            if (key.name === 'flatfield' || key.name === 'pixel_mask') {
+                var dataType = 'file';
+            } else {
+                var dataType = key.value_type.value;
+            }
+        } catch(err) {
+            if (key.subdomain.index === 'command') {
+                if (key.index === 'trigger') {
+                    var dataType = 'float';
+                } else {
+                    var dataType = 'command';
+                }
+            }
+        };
+        return dataType;
+    },
 	end : function() {
         this.btn01.remove();
 		this.eUi.removeQueryStatusListener(this);
@@ -4168,13 +3828,17 @@ EIGERUiHandler.prototype = {
         this.ui.cset.inp01.setDisabled(true);
         this.ui.cset.inp02.setDisabled(true);
         this.ui.cset.frm01.clearSubmit();
-        this.ui.cset.btn01.setText('disconnect');
-        this.ui.cset.btn01.click(function() {window.location.reload(),[]});
+        this.ui.cset.btn02.setText('disconnect');
+        this.ui.cset.btn02.click(function() {window.location.reload(),[]});
         
         this.switchView(acqView);
         this.ui.acq.connect();
 		this.ui.acq.disableAdvMode();
 		this.ui.acq.chk04.setDisabled(false);
+		
+		// Show hidden widgets
+		this.ui.showHiddenHomeWidgets();
+	
 	},	
 	connectError : function(data) {
 		alert(sprintf('%s\n\n%s','Failed to connect to detector.',data.statusText));
@@ -4406,176 +4070,320 @@ EIGERUiConnector.prototype = {
         this.reattachSubmit();
     }
 };
-
-var clientVersion = '1.4.0T2';
-var uniId = 0;
-
-$( document ).ready(function() {
-	var body = new BodyArea(uniId++);
-	
-	var resizer = new AreaResizer();
-		
-	var headerBannerArea = new PlacementArea(body, uniId++, 'xx', 'xx'); 
-	headerBannerArea.setWidth('900px')
-	headerBannerArea.setHeight('223px')
-	headerBannerArea.setOffset({top:'10', left:'10'})
-	
-	resizer.resizeOffset(headerBannerArea.setOffset, headerBannerArea, 'left', ['mid',-457], -7)
-	
-	var headerLogoArea = new PlacementArea(body, uniId++, 'xx', 'xx'); 
-	headerLogoArea.setWidth('173px')
-	headerLogoArea.setHeight('40px')
-	headerLogoArea.setOffset({top:'3', left:'30'})
-
-	resizer.resizeOffset(headerLogoArea.setOffset, headerLogoArea, 'left', ['mid',-437], 13)
-	
-	var headerClaimArea = new PlacementArea(body, uniId++, 'xx', 'xx'); 
-	headerClaimArea.setWidth('440px')
-	headerClaimArea.setHeight('40px')
-	headerClaimArea.setOffset({top:'3', left:'470'})
-
-	resizer.resizeOffset(headerClaimArea.setOffset, headerClaimArea, 'left', ['mid',3], 453)
-	
-	var headerArea = new PlacementArea(body, uniId++, 'xx', 'xx'); 
-	headerArea.setWidth('900px')
-	headerArea.setHeight('270px')
-	headerArea.setOffset({top:'0', left:'18'})
-	headerArea.jElement.addClass('header-area');
-
-	resizer.resizeOffset(headerArea.setOffset, headerArea, 'left', ['mid',-449], 1)
-	
-	var statusArea = new PlacementArea(body, uniId++, 'xx', 'xx'); 
-	statusArea.setWidth('130px');
-	statusArea.setHeight('50px');
-	statusArea.setOffset({top:'205', left:'780'});
-	
-	resizer.resizeOffset(statusArea.setOffset, statusArea, 'left', ['mid',317], 767)
-	
-	var navigationArea = new PlacementArea(body, uniId++, 'xx', 'xx'); 
-	navigationArea.setWidth('900px')
-	navigationArea.setHeight('30px')
-	navigationArea.setOffset({top:'235', left:'25'})
-	
-	resizer.resizeOffset(navigationArea.setOffset, navigationArea, 'left', ['mid',-442], 8)
-	
-	var footerArea01 = new PlacementArea(body, uniId++, 'xx', 'xx'); 
-	footerArea01.setWidth('300px')
-	footerArea01.setHeight('100px')
-	footerArea01.setOffset({top:'600', left:'600'})
-	
-	resizer.resizeOffset(footerArea01.setOffset, footerArea01, 'left', ['mid',133], 583)
-	resizer.resizeOffset(footerArea01.setOffset, footerArea01, 'top', ['abs',-100], 390)
-	
-	var footerArea02 = new PlacementArea(body, uniId++, 'xx', 'xx'); 
-	footerArea02.setWidth('295px')
-	footerArea02.setHeight('7px')
-	footerArea02.setOffset({top:'800', left:'605'})
-	footerArea02.getJElement().addClass('dectris-background');
-	
-	resizer.resizeOffset(footerArea02.setOffset, footerArea02, 'left', ['mid',138], 588)
-	resizer.resizeOffset(footerArea02.setOffset, footerArea02, 'top', ['abs',-7], 390)
-	
-	var mainArea = new PlacementArea(body, uniId++, 'xx', 'xx'); 
-	mainArea.jElement.addClass('main-area');
-	mainArea.setWidth('900px')
-	mainArea.setOffset({top:'290', left:'18'})
-	
-	resizer.resizeOffset(mainArea.setOffset, mainArea, 'left', ['mid',-449], 1)
-	
-	// Trigger Resizer to position elements
-	resizer.trigger()
-	
-	// Header, Logo and Title
-	var he01 = new BlockArea(headerBannerArea, uniId++, 'xx', 'xx')
-	
-	var he01_img01 = he01.addWidget(Image,[])
-	he01_img01.setSrc('im/Banner_BRUENIG_WEBCLIENT.jpg')
-	he01_img01.setWidth('900px');	
-	
-	var he02 = new BlockArea(headerLogoArea, uniId++, 'xx', 'xx')
-	
-	var he02_img01 = he02.addWidget(Image,[])
-	he02_img01.setSrc('im/dectris_logo_1x.jpg')
-	he02_img01.setWidth('173px');
-	
-	var he03 = new BlockArea(headerClaimArea, uniId++, 'xx', 'xx')
-	
-	var he03_img01 = he03.addWidget(Image,[])
-	he03_img01.setSrc('im/dectris_claim.png')
-	he03_img01.setWidth('440px');
-	
-	// footer, Logo and Address
-	var fo01 = new BlockArea(footerArea01, uniId++, 'xx', 'xx')
-	
-	var fo01_lbl01 = fo01.addWidget(Label,[])
-	fo01_lbl01.getJElement().addClass('dectris');
-	fo01_lbl01.getJElement().html('<b>DECTRIS Ltd.</b><br>5400 Baden<br>Switzerland<br><b>www.dectris.com<b>');
-	
-	// Status Header
-	var st01 = new BlockArea(statusArea, uniId++, 'xx', 'xx');
-	
-	// UI Handler
-	var ui = new UiHandler(body, mainArea, nv01, resizer);
-	var eUi = new EIGERUiHandler(ui);
-	
-	// Status Header Widget
-	var st01_lbl01 = st01.addWidget(Label,[]);
-	st01_lbl01.setText('No S/N Found');
-	st01_lbl01.setWidth('100px');
-	
-	eUi.uiConnect(st01_lbl01, eUi.e.detector.config.detector_number, 10);
-	
-	st01.addNewLine();
-	
-	var st01_ind01 = st01.addWidget(Indicator,[]);
-	st01_ind01.setText('Not Connected');
-	st01_ind01.setWidth('120px');
-	eUi.uiConnect(st01_ind01, eUi.e.detector.status.state, .2);
-
-	
-	// Navigation
-	var nv01 = new BlockArea(navigationArea, 1, 'xx', 'xx');
-	
-	// Adding pages to main
-	var pa01 = ui.addView(ViewArea, 'Settings', 'Detector Settings');
-	var pa02 = ui.addView(ViewArea, 'Acquire', 'Aquisition Settings');
-	var pa03 = ui.addView(ViewArea, 'Exposure', 'Exposure Information');
-	var pa04 = ui.addView(ViewArea, 'Data', 'Data Information');
-	var pa05 = ui.addView(ViewArea, 'Log', 'Logs and Information');
-	var pa06 = ui.addView(ViewArea, 'Help & Support', 'Information about DECTRIS Ltd. support and help.');
-	
-	// Adding buttons for pages (navigation)
-	var nv01_btn01 = ui.addNavButton(pa01, nv01);
-	var nv01_btn02 = ui.addNavButton(pa02, nv01);
-	var nv01_btn03 = ui.addNavButton(pa03, nv01);
-	var nv01_btn04 = ui.addNavButton(pa04, nv01);
-	var nv01_btn05 = ui.addNavButton(pa05, nv01);
-	var nv01_btn06 = ui.addNavButton(pa06, nv01);
-	
-	// page1, connection settings
-	var p01_con01 = pa01.addWidget(EIGERConSet,[ui, eUi]);
-	var p02_set01 = pa02.addWidget(EIGERAcqSet,[ui, eUi]);
-	var p03_acq01 = pa03.addWidget(EIGERAcq, [ui, eUi]);
-	var p04_dat01 = pa04.addWidget(EIGERData, [ui, eUi]);
-	var p05_log01 = pa05.addWidget(EIGERLog, [ui, eUi]);
-	var p06_hlp01 = pa06.addWidget(EIGERHelp, [ui, eUi]);
+function SVGElement(parent, id, name, description) {
+    this.parent = parent;
+    this.id = id;
+    this.name = name;
+    this.description = description;
     
-    //
-    pa05.activate = function () {
-        p05_log01.activateLog();
+    this.svgNS = this.parent.getSVG().namespaceURI;
+}
+SVGElement.prototype = {
+    getSVG : function () {
+        return this.element;
     }
-    pa05.leave = function () {
-        p05_log01.disableLog();
+}
+
+function SVGGroup(parent, id, name, description) {
+    SVGElement.call(this, parent, id, name, description);
+    
+    this.type = 'group';
+    this.svgElementList = [];
+    
+    this.element = document.createElementNS(this.svgNS,'g');
+    this.parent.getSVG().appendChild(this.element);
+    
+    this.paths = [];
+}
+SVGGroup.prototype = {
+    setAttr : function(args) {
+        this.element.setAttribute(arguments[0],arguments[1]);
+    },
+	addSVGObject : function(args)
+	{
+		var defaultArgs = [this, uniId++, arguments[0].type, 'ToDo'];
+		var svgElement = construct(arguments[0],defaultArgs.concat(arguments[1]));
+		this.svgElementList.push(svgElement);
+		return svgElement;
+	},
+    addSVGPaths : function(pathDefs)
+    {
+        pathDefs.forEach( function (element, index, array) {
+            var path = this.addSVGObject(SVGPath, [element]);
+            this.paths.push(path);
+        }, this);
+    },
+    setSVGPathsAttr : function(args)
+    {
+        var attrArguments = arguments;
+        this.paths.forEach( function (element, index, array)
+        {
+            element.setAttr2.apply(element, attrArguments)
+        }, this)
     }
-    pa04.activate = function () {
-        eUi.e.filewriter.files.update();
-    }   
+}
 
-	// Main Area Footer
-	
-	var ma01 = new BlockArea(mainArea, uniId++, 'xx', 'xx');
-	var ma01_lbl01 = ma01.addWidget(Label,[]);
-	ma01_lbl01.getJElement().addClass('main-footer')
-	ma01_lbl01.setText(sprintf('EIGER Quick Start Client, %s, Copyright: DECTRIS Ltd., Author: Andy Moesch',clientVersion))
-});
+function SVGObject(parent, id, name, description) {
+    SVGElement.call(this, parent, id, name, description);
+}
+SVGObject.prototype = {
+    setAttr : function(args) {
+        this.element.setAttribute(arguments[0],arguments[1]);
+    },
+    setAttr2 : function(args) {
+        this.element.setAttribute(arguments[0],arguments[1]);
+    },
+    setFill : function(value) {
+        this.setAttr('fill', value);
+    },
+    setStroke : function(value) {
+        this.setAttr('stroke', value);
+    },
+    setStrokeWidth : function(value) {
+        this.setAttr('stroke-width', value);
+    }
+}
 
+function SVGPath(parent, id, name, description, pathDef) {
+    SVGObject.call(this, parent, id, name, description);
+    
+    this.type = 'path';
+    this.element = document.createElementNS(this.svgNS,'path');
+    this.element.setAttribute('id', id);
+    this.element.setAttribute('d', pathDef);
+    this.parent.getSVG().appendChild(this.element);
+}
+SVGPath.prototype = {
+}
+
+function EIGERSVGModule(parent, id, name, description, xOffset, yOffset, scale) {
+    SVGGroup.call(this, parent, id, name, description);
+
+    this.xOffset = xOffset;
+    this.yOffset = yOffset;
+    
+    this.setAttr('transform',sprintf('matrix(%f,0,0,%f,%f,%f)', scale, scale, xOffset, yOffset));
+    
+    this.mcbs = []
+    
+    var mcb = this.addSVGObject(EIGERSVGMCB, [0, 0]);
+    mcb.setSVGPathsAttr('fill', 'none');    
+    mcb.setSVGPathsAttr('stroke', '#000000');  
+    mcb.setSVGPathsAttr('stroke-width', '15px');  
+    
+    this.sensor = this.addSVGObject(EIGERSVGBack, [0, 0]);
+    this.sensor.setSVGPathsAttr('fill', 'none');    
+    this.sensor.setSVGPathsAttr('stroke', '#aaaaaa');  
+    this.sensor.setSVGPathsAttr('stroke-width', '10px');
+    
+    mcb = this.addSVGObject(EIGERSVGMCB, [0, 732]);
+    mcb.setSVGPathsAttr('fill', 'none');    
+    mcb.setSVGPathsAttr('stroke', '#000000');  
+    mcb.setSVGPathsAttr('stroke-width', '15px');  
+    this.mcbs.push(mcb);
+    
+    this.sensor = this.addSVGObject(EIGERSVGFront, [0, 0]);
+    this.sensor.setSVGPathsAttr('fill', 'none');    
+    this.sensor.setSVGPathsAttr('stroke', '#aaaaaa');  
+    this.sensor.setSVGPathsAttr('stroke-width', '10px');
+    
+    chipOffsets = [
+        [0,0],
+        [1190,65],
+        [2380,130],
+        [3570,195],
+        [0,1255],
+        [1190,1320],
+        [2380,1385],
+        [3570,1450]
+    ]
+    
+    this.rocs = [];
+    
+    chipOffsets.forEach(function(element, index, array){
+        var chip = this.addSVGObject(EIGERSVGChip, [element[0], element[1]]);
+        chip.setSVGPathsAttr('fill', 'none');    
+        chip.setSVGPathsAttr('stroke', '#aaaaaa');  
+        chip.setSVGPathsAttr('stroke-width', '10px');  
+        this.rocs.push(chip);
+    }, this);
+    
+    this.sensor = this.addSVGObject(EIGERSVGSensor, [0, 0]);
+    this.sensor.setSVGPathsAttr('fill', '#ffffff');    
+    this.sensor.setSVGPathsAttr('stroke', '#000000');  
+    this.sensor.setSVGPathsAttr('stroke-width', '15px');  
+    this.sensor.setSVGPathsAttr('fill-opacity', '.6');  
+    
+    console.log(this.sensor)
+    var callee = this;
+    this.sensor.paths[0].element.onclick = function() {
+        alert('hi');
+    }
+}
+
+EIGERSVGModule.prototype = {
+};
+
+function EIGERSVGSensor(parent, id, name, description, xOffset, yOffset) {
+    SVGGroup.call(this, parent, id, name, description);
+
+    this.xOffset = xOffset;
+    this.yOffset = yOffset;
+    
+    this.setAttr('transform',sprintf('matrix(%f,0,0,%f,%f,%f)', 1, 1, xOffset, yOffset));
+    
+    var pathDefs = 
+            [
+        'm1523,4394 l5,-2445 l4765,260 l0,0 l0,2445 z'
+            ];
+    
+    this.addSVGPaths(pathDefs);  
+}
+
+EIGERSVGSensor.prototype = {
+};
+
+function EIGERSVGChip(parent, id, name, description, xOffset, yOffset) {
+    SVGGroup.call(this, parent, id, name, description);
+
+    this.xOffset = xOffset;
+    this.yOffset = yOffset;
+    
+    this.setAttr('transform',sprintf('matrix(%f,0,0,%f,%f,%f)', 1, 1, xOffset, yOffset));
+    
+    var pathDefs = 
+            [
+        'm 1533,1915 l 0,1255 l 1190,65 l 0,-1250 z',
+        'm 1542,1900 l 0,1255 l 1190,65 l 0,-1250 z'
+            ];
+    
+    this.addSVGPaths(pathDefs);  
+}
+
+EIGERSVGChip.prototype = {
+};
+
+function EIGERSVGFront(parent, id, name, description, xOffset, yOffset) {
+    SVGGroup.call(this, parent, id, name, description);
+
+    this.xOffset = xOffset;
+    this.yOffset = yOffset;
+    
+    this.setAttr('transform',sprintf('matrix(%f,0,0,%f,%f,%f)', 1, 1, xOffset, yOffset));
+    
+    var pathDefs = 
+            [
+        'm 6440,4620 l 0,-2580 l -4780,-265 l 5,2580 z',
+        'm 6440,4620 l -115,85 l 0,-130 l 20,-10 l 0,-165 l -20,15 l -5,-2010 l 20,-20 l 0,-160 l -20,20 l 0,-125 l 120,-80',
+        'm 1661.8051,4355.9366 l -115,85 l 0,-130 l 20,-10 l 0,-165 l -20,15 l -5,-2010 l 20,-20 l 0,-160 l -20,20 l 0,-125 l 120,-80',
+        'm 1540,1980 l 4780,265',
+        'm 1541,2141 l 4780,265',
+        'm 1559,2121 l 4780,265',
+        'm 1547,4313 l 4780,265',
+        'm 1545,4154 l 4780,265',
+        'm 1565,4298 l 4780,265',
+        'm 1544,4441 l 4780,265',
+        'm 1541,1857 l 4780,265'
+            ];
+    
+    this.addSVGPaths(pathDefs);  
+}
+
+EIGERSVGFront.prototype = {
+};
+
+function EIGERSVGBack(parent, id, name, description, xOffset, yOffset) {
+    SVGGroup.call(this, parent, id, name, description);
+
+    this.xOffset = xOffset;
+    this.yOffset = yOffset;
+    
+    this.setAttr('transform',sprintf('matrix(%f,0,0,%f,%f,%f)', 1, 1, xOffset, yOffset));
+    
+    var pathDefs = 
+            [
+        'm 2180,3250 0,-440 -229.0765,-15.4815 c -95,-5 -148,65 -148,135 l 0,155 c 3,90 58,140 138,150 z',
+        'm 1771,2878 95,-63',
+        'm 2180,3250 85,-60 0,-75 2065,-1360',
+        'm 2265,3190 -60,-10 0,-75 60,10',
+        'm 2264,3113 157,-103 c 60,-45 58,-312 1,-272 l -153,110',
+        'm 2204,3104 157,-103 c 60,-45 58,-312 1,-272 l -153,110',
+        'm 2180,2810 1846,-1226 415,23 339,-227 -445,-25 -1960,1300 30,8',
+        'm 2270,2845 -60,-5 0,-55 60,5 z',
+        'm 2205,3180 195,-121',
+        'm 2399,3056 1.2658,-390.9011 -30,-10 -160,165 0,60 z',
+        'm 6248,3539 c 95,5 148,-65 148,-135 l 0,-155 c -3,-90 -58,-140 -138,-150 L 1860,2855 c -95,-5 -148,65 -148,135 l 0,155 c 3,90 58,140 138,150 z',
+        'm 6105,3023 0,440 229,15 c 95,5 148,-65 148,-135 l 0,-155 c -3,-90 -58,-140 -138,-150 z',
+        'm 6197,3326 157,-103 c 60,-45 58,-312 1,-273 l -153,110',
+        'm 6251,3333 157,-103 c 60,-45 58,-312 1,-273 l -153,110',
+        'm 6100,3460 95,-55 0,-80 60,5 0,80 -60,-5',
+        'm 6105,3025 90,-60 65,5 0,95 -62,-7 -3,-93',
+        'm 6260,2970 195,-125 0,435 -200,130',
+        'm 6455,2845 25,0 155,170 0,120 -155,147 -25,-2',
+        'm 6480,2845 1960,-1300 40,35 0,365 -2000,1335',
+        'm 6635,3015 1930,-1275 0,115 -1930,1280',
+        'm 8480,1945 85,-90',
+        'm 8565,1740 -85,-160',
+        'm 8440,1545 -455,-30 0,440 445,25',
+        'm 4780,1780 -450,-25 -195,-145 0,-75 155,-150 45,-30',
+        'm 4290,1390 0,330',
+        'm 2210,2880 1925,-1270',
+        'm 4135,1535 -1925,1285',
+        'm 4660,1460 2080,100 -140,100 c -34,32 29,34 80,40 l 820,40 c 54,0 123,17 160,0 l 325,-225',
+        'm 4780,1780 -221,163 C 4530,1970 4480,1990 4520,2000 l 860,60 c 40,5 107,9 160,-20 l 165,-127 2113,145',
+        'm 4660,1460 0,410',
+        'm 4780,1780 0,-400',
+        'm 7985,1955 -165,100 0,-425'
+            ];
+    
+    this.addSVGPaths(pathDefs);  
+}
+
+EIGERSVGBack.prototype = {
+};
+
+function EIGERSVGMCB(parent, id, name, description, xOffset, yOffset) {
+    SVGGroup.call(this, parent, id, name, description);
+
+    this.xOffset = xOffset;
+    this.yOffset = yOffset;
+    
+    this.setAttr('transform',sprintf('matrix(%f,0,0,%f,%f,%f)', 1, 1, xOffset, yOffset));
+    
+    var pathDefs = 
+            [
+        'm 2233.6927,2665.4629 70,-50 -60,-3 1940,-1292 330,20 200,-125 3190,175 -185,125 325,20 -1940,1290 -60,-5 -75,50 -1475,-80 70,-50 -790,-40 -70,45 z',
+        'm 2232.5389,2785.3466 70,-50 -60,-3 1940,-1292 330,20 200,-125 3189.9998,175 -185,125 325,20 -1939.9998,1290 -60,-5 -75,50 -1475,-80 70,-50 -790,-40 -70,45 z',
+        'm 4488,2793 0,120',
+        'm 4565,2741 0,120',
+        'm 3773,2705 0,120',
+        'm 3702,2743 0,120',
+        'm 2231,2668 0,120',
+        'm 2305,2615 0,120',
+        'm 2246,2612 0,120',
+        'm 4184,1320 0,120',
+        'm 4512,1338 0,120',
+        'm 4714,1217 0,120',
+        'm 7718,1518 0,120',
+        'm 7907,1389 0,120',
+        'm 8045,1537 0,120',
+        'm 6101,2827 0,120',
+        'm 6045,2821 0,120',
+        'm 5966,2872 0,120'
+            ];
+    
+    this.addSVGPaths(pathDefs);  
+}
+
+EIGERSVGMCB.prototype = {
+};
+
+extend(SVGElement, SVGGroup);
+extend(SVGElement, SVGObject);
+extend(SVGObject, SVGPath);
+extend(SVGGroup, EIGERSVGModule);
+extend(SVGGroup, EIGERSVGSensor);
+extend(SVGGroup, EIGERSVGChip);
+extend(SVGGroup, EIGERSVGFront);
+extend(SVGGroup, EIGERSVGBack);
+extend(SVGGroup, EIGERSVGMCB);

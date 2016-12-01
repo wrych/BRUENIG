@@ -39,9 +39,10 @@ function EIGERConSet(parent, id, name, description, ui, eUi) {
 	this.ui.cset = this;
 	this.eUi = eUi;
 	this.type = 'ConnectionWidget';
+	
 	this.ttl01 = this.addWidget(Title,[])
 	this.ttl01.setLvl('h2');
-	this.ttl01.setText('EIGER Connection Settings');
+	this.ttl01.setText('Connect to your EIGER Detector');
 	
 	this.addNewLine();
 	
@@ -51,15 +52,25 @@ function EIGERConSet(parent, id, name, description, ui, eUi) {
 	this.inp01.setTitle('Address');
 	this.inp01.setValue(document.domain);
 	
+	this.btn01 =  this.frm01.addWidget(Button,['...']);
+	this.btn01.click(this.showAdvSetting, this)
+	
 	this.inp02 = this.frm01.addWidget(Input,[]);
 	this.inp02.setTitle('Port');
+	this.inp02.setValue('80');
 	
-	this.btn01 = this.frm01.addWidget(SubmitButton,['connect']);
+	this.inp02.setVisibility(false);
+	
+	this.btn02 = this.frm01.addWidget(SubmitButton,['connect']);
 	
 	this.frm01.submit(this.connect, this);
 }
 
 EIGERConSet.prototype = {
+	showAdvSetting: function(event) {
+		this.btn01.setVisibility(false);
+		this.inp02.setVisibility(true);
+	},
 	connect : function(event) {
 		this.eUi.connect(this.inp01.getValue(), this.inp02.getValue());
 	},
@@ -909,7 +920,7 @@ function EIGERCustomCmdPrompt(parent, id, name, description, eUi) {
 	this.tlt01.setLvl('h3');
     
     this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'top', ['mid',-200], 0);
-    this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'left', ['mid',-410], 0);
+    this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'left', ['mid',-445], 0);
 	this.eUi.ui.resizer.trigger();
     
     this.tlt01.setText('Custom Command Queue Builder');
@@ -1263,7 +1274,7 @@ function EIGERCmdInformation(parent, id, name, description, eUi) {
     this.addClickListener(this.getJElement(), function () {});
     
     this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'top', ['mid',-300], 0);
-    this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'left', ['mid',-400], 0);
+    this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'left', ['mid',-445], 0);
 	this.eUi.ui.resizer.trigger();
     
     this.img01 = this.addWidget(Image,[]);
@@ -1666,7 +1677,7 @@ function EIGERSubseqCmdPrompt(parent, id, name, description, eUi, callback) {
 	this.tlt01.setLvl('h3');
     
     this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'top', ['mid',-200], 0);
-    this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'left', ['mid',-410], 0);
+    this.eUi.ui.resizer.resizeOffset(this.setOffset, this, 'left', ['mid',-445], 0);
 	this.eUi.ui.resizer.trigger();
     
 	this.cmdLogList = [];
@@ -2273,17 +2284,20 @@ EIGERUiHandler.prototype = {
 		var acqView = this.getView('Acquire');
 		
         //Remove old click listeners
-		console.log(this.ui)
         this.ui.cset.inp01.setDisabled(true);
         this.ui.cset.inp02.setDisabled(true);
         this.ui.cset.frm01.clearSubmit();
-        this.ui.cset.btn01.setText('disconnect');
-        this.ui.cset.btn01.click(function() {window.location.reload(),[]});
+        this.ui.cset.btn02.setText('disconnect');
+        this.ui.cset.btn02.click(function() {window.location.reload(),[]});
         
         this.switchView(acqView);
         this.ui.acq.connect();
 		this.ui.acq.disableAdvMode();
 		this.ui.acq.chk04.setDisabled(false);
+		
+		// Show hidden widgets
+		this.ui.showHiddenHomeWidgets();
+	
 	},	
 	connectError : function(data) {
 		alert(sprintf('%s\n\n%s','Failed to connect to detector.',data.statusText));

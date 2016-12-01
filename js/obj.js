@@ -174,6 +174,12 @@ Area.prototype = {
 	getJElement: function(){
 		return this.jElement;
 	},
+	fadeIn : function(duration) {
+		this.jElement.fadeIn(duration)
+	},
+	fadeOut : function(duration) {
+		this.jElement.fadeOut(duration)
+	},
 	addClickListener: function(area, action){
 		var callee = this;
 		$( area ).click( function (event) {
@@ -213,6 +219,10 @@ Area.prototype = {
 				actionOut.apply(callee, [event] );
 			};
 		});
+	},
+	removeHoverListeners: function (area) {
+		$( area ).unbind( "mouseenter" );
+		$( area ).unbind( "mouseleave" );
 	},
 	setWidth : function(value)
 	{
@@ -872,6 +882,8 @@ Button.prototype = {
 	}
 };
 
+
+
 function SubmitButton(parent, id, name, description, text, imagePath) {
 	Button.call(this, parent, id, name, description, text, imagePath);
 	this.setType('submit');
@@ -1154,6 +1166,10 @@ function UiHandler(body, area, navArea, resizer){
     
     this.resizer = resizer;
 	
+	this.hiddenElements = [];
+	this.hiddenNavigationHoverArea = null;
+	this.hiddenNavigation = [];
+	
 	this.body = body;
 	this.uiOLInt = 0;
 	this.uiOverlays = {};
@@ -1168,6 +1184,51 @@ function UiHandler(body, area, navArea, resizer){
 }
 
 UiHandler.prototype = {
+	addHiddenHomeNavigation : function(widget) {
+		this.hiddenNavigation.push(widget);
+		widget.setVisibility(false);
+	},	
+	hideHomeNavigation : function() {
+		for (var el in this.hiddenNavigation) {
+			this.hiddenNavigation[el].getJElement().delay(2000).fadeOut(500);
+		}
+	},
+	showHomeNavigation : function() {
+		for (var el in this.hiddenNavigation) {
+			this.hiddenNavigation[el].getJElement().fadeIn(200);
+		}
+	},
+	enableHomeNavigationHover : function(area) {
+		var callee = this;
+		this.hiddenNavigationHoverArea = area;
+		area.addHoverListener(
+			area.getJElement(), 
+			function(event) {
+				callee.showHomeNavigation.apply(callee, []);
+			}, 
+			function(event) {
+				callee.hideHomeNavigation.apply(callee, []);
+			}
+		);
+	},
+	addHiddenHomeWidget : function(widget) {
+		this.hiddenElements.push(widget);
+		widget.setVisibility(false);
+	},
+	hideHiddenHomeWidgets : function() {
+		for (var el in this.hiddenElements) {
+			this.hiddenElements[el].setVisibility(false)
+		}
+	},
+	showHiddenHomeWidgets : function() {
+		for (var el in this.hiddenElements) {
+			this.hiddenElements[el].setVisibility(true)
+		}
+		for (var el in this.hiddenNavigation) {
+			this.hiddenNavigation[el].setVisibility(true)
+		}
+		this.hiddenNavigationHoverArea.removeHoverListeners(this.hiddenNavigationHoverArea.getJElement());
+	},
 	showOverlay : function() {
 		var id = this.uiOLInt++;
 		var tmpOL = new Overlay(this.body, id, 'Overlay', 'Overlay');

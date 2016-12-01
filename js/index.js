@@ -122,17 +122,17 @@ $( document ).ready(function() {
 	st01_ind01.setText('Not Connected');
 	st01_ind01.setWidth('120px');
 	eUi.uiConnect(st01_ind01, eUi.e.detector.status.state, .2);
-
+	ui.addHiddenHomeWidget(st01);
 	
 	// Navigation
 	var nv01 = new BlockArea(navigationArea, 1, 'xx', 'xx');
 	
 	// Adding pages to main
-	var pa01 = ui.addView(ViewArea, 'Settings', 'Detector Settings');
+	var pa01 = ui.addView(ViewArea, 'Home', 'Detector Settings');
 	var pa02 = ui.addView(ViewArea, 'Acquire', 'Aquisition Settings');
 	var pa03 = ui.addView(ViewArea, 'Exposure', 'Exposure Information');
 	var pa04 = ui.addView(ViewArea, 'Data', 'Data Information');
-	var pa05 = ui.addView(ViewArea, 'Status', 'EIGER Status Information.');
+	//var pa05 = ui.addView(ViewArea, 'Status', 'EIGER Status Information.');
 	var pa06 = ui.addView(ViewArea, 'Log', 'Logs and Information');
 	var pa07 = ui.addView(ViewArea, 'Help & Support', 'Information about DECTRIS Ltd. support and help.');
 	
@@ -141,25 +141,31 @@ $( document ).ready(function() {
 	var nv01_btn02 = ui.addNavButton(pa02, nv01);
 	var nv01_btn03 = ui.addNavButton(pa03, nv01);
 	var nv01_btn04 = ui.addNavButton(pa04, nv01);
-	var nv01_btn05 = ui.addNavButton(pa05, nv01);
+	//var nv01_btn05 = ui.addNavButton(pa05, nv01);
 	var nv01_btn06 = ui.addNavButton(pa06, nv01);
 	var nv01_btn07 = ui.addNavButton(pa07, nv01);
+	ui.addHiddenHomeNavigation(nv01_btn01);
+	ui.addHiddenHomeWidget(nv01_btn02);
+	ui.addHiddenHomeWidget(nv01_btn03);
+	ui.addHiddenHomeWidget(nv01_btn04);
+	ui.addHiddenHomeWidget(nv01_btn06);
+	ui.addHiddenHomeNavigation(nv01_btn07);
 	
 	// page1, connection settings
 	var p01_con01 = pa01.addWidget(EIGERConSet,[ui, eUi]);
 	var p02_set01 = pa02.addWidget(EIGERAcqSet,[ui, eUi]);
 	var p03_acq01 = pa03.addWidget(EIGERAcq, [ui, eUi]);
 	var p04_dat01 = pa04.addWidget(EIGERData, [ui, eUi]);
-	var p05_sta01 = pa05.addWidget(EIGERStatus, [ui, eUi]);
+	//var p05_sta01 = pa05.addWidget(EIGERStatus, [ui, eUi]);
 	var p06_log01 = pa06.addWidget(EIGERLog, [ui, eUi]);
 	var p07_hlp01 = pa07.addWidget(EIGERHelp, [ui, eUi]);
     
     //
     pa06.activate = function () {
-        p05_log01.activateLog();
+        p06_log01.activateLog();
     }
     pa06.leave = function () {
-        p05_log01.disableLog();
+        p06_log01.disableLog();
     }
     pa04.activate = function () {
         eUi.e.filewriter.files.update();
@@ -171,4 +177,8 @@ $( document ).ready(function() {
 	var ma01_lbl01 = ma01.addWidget(Label,[]);
 	ma01_lbl01.getJElement().addClass('main-footer')
 	ma01_lbl01.setText(sprintf('EIGER Quick Start Client, %s, Copyright: DECTRIS Ltd., Author: Andy Moesch',clientVersion))
+	ui.addHiddenHomeWidget(ma01);
+	
+	// Hide Navigation Bar and Status Widget until connnected
+	ui.enableHomeNavigationHover(navigationArea);
 });
