@@ -8,11 +8,11 @@ body {
 	min-height: 100%;
 }
 
-input[type=text] {
+input {
 	padding: 1px 5px 1px 5px;
 	background-color: white;
-	border: solid 1px #868786;
-	border-radius: 5px;
+	border: solid 1px #bbbbbb;
+	border-radius: 2;
 	color: #181716;
 }
 
@@ -89,7 +89,7 @@ input:focus {
 
 .statusIndicator {
 	cursor: help;
-	border-radius: 6px;
+	border-radius: 2px;
 }
 
 .indicator {
@@ -101,6 +101,7 @@ input:focus {
 }
 
 .button {
+	margin: 1px;
 }
 
 .nav-button {
@@ -146,13 +147,13 @@ input:focus {
 }
 
 .overlay-display{	
-        padding: 5px;
+    padding: 5px;
 	color: #868786;
 	background-color: white;
 	position: fixed;
-	top: 10px;
-	left: 10px;
-	border-radius: 5px;
+	top: 0px;
+	left: 0px;
+	border-radius: 2px;
 }
 
 table {
